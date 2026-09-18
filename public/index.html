@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Squadlore_Travel_Proj</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root { --accent: #3B6D11; --bg: #f5f5f0; --card: #ffffff; --border: #ddd; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: var(--bg); color: #222; }
+  header { background: var(--accent); color: white; padding: 14px 16px; font-weight: 600; font-size: 18px; display: flex; align-items: center; gap: 12px; }
+  #menu-btn { width: auto; background: none; padding: 4px 8px; margin: 0; font-size: 22px; line-height: 1; }
+  #drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 20; }
+  #drawer { position: fixed; top: 0; left: 0; bottom: 0; width: 280px; background: var(--bg); z-index: 21; padding: 16px; overflow-y: auto; box-shadow: 2px 0 12px rgba(0,0,0,0.2); }
+  .drawer-pack { padding: 8px; border-radius: 8px; cursor: pointer; }
+  .drawer-pack:hover { background: #eee; }
+  main { max-width: 480px; margin: 0 auto; padding: 16px; padding-bottom: 80px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  input, select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; font-size: 15px; }
+  button { width: 100%; padding: 12px; border: none; border-radius: 8px; background: var(--accent); color: white; font-size: 15px; font-weight: 600; cursor: pointer; margin-bottom: 8px; }
+  button.secondary { background: #eee; color: #333; }
+  button:disabled { opacity: 0.5; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .pack-item, .trip-item { padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .pack-item:hover, .trip-item:hover { background: #fafafa; }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 20px; background: #eee; color: #555; }
+  .badge.active { background: #dff0d8; color: #3c763d; }
+  h2 { margin-top: 0; font-size: 17px; }
+  #map { height: 220px; border-radius: 12px; margin-bottom: 12px; }
+  .bubble { display: flex; gap: 10px; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
+  .bubble img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); }
+  .photo-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px; margin-bottom: 14px; }
+  .photo-card img { width: 100%; border-radius: 8px; margin-bottom: 8px; object-fit: cover; max-height: 280px; }
+  .photo-meta { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .reaction-row { display: flex; gap: 4px; margin-bottom: 6px; }
+  .emoji-btn { width: auto; background: #f2f2f2; color: #333; padding: 4px 8px; font-size: 16px; border-radius: 20px; margin: 0; }
+  .emoji-btn.has-count { background: var(--accent); color: white; }
+  .tag-row { font-size: 12px; color: #888; margin-bottom: 6px; }
+  .comment-list { margin-bottom: 8px; }
+  .comment { font-size: 13px; padding: 4px 0; border-bottom: 1px solid #f2f2f2; }
+  .back { background: none; color: var(--accent); font-weight: 600; padding: 0; width: auto; margin-bottom: 12px; }
+  .status { font-size: 13px; color: #888; margin-bottom: 8px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <button id="menu-btn" onclick="toggleDrawer()" aria-label="Menu">&#9776;</button>
+  <span>🧭 Squadlore_Travel_Proj</span>
+</header>
+
+<div id="drawer-overlay" class="hidden" onclick="toggleDrawer()"></div>
+<div id="drawer" class="hidden">
+  <div class="card">
+    <h2>Account</h2>
+    <div id="drawer-account" class="status"></div>
+  </div>
+  <div class="card">
+    <h2>Your Packs/Toli</h2>
+    <div id="drawer-packs"></div>
+    <button class="secondary" onclick="toggleDrawer(); showHome();">See all / + New</button>
+  </div>
+</div>
+<main>
+
+  <!-- SETUP: create/identify a user -->
+  <div id="view-setup" class="card hidden">
+    <h2>Who are you?</h2>
+    <input id="setup-name" placeholder="Your name" />
+    <input id="setup-phone" placeholder="Phone number (e.g. +15551234567)" />
+    <button onclick="setupUser()">Continue</button>
+  </div>
+
+  <!-- HOME: list of packs -->
+  <div id="view-home" class="hidden">
+    <div class="card">
+      <h2>Your Packs/Toli</h2>
+      <div id="pack-list"></div>
+      <div class="row" style="margin-top:10px">
+        <input id="new-pack-name" placeholder="New Pack/Toli name" />
+      </div>
+      <button onclick="createPack()">+ New Pack/Toli</button>
+    </div>
+  </div>
+
+  <!-- PACK DETAIL: members + trips -->
+  <div id="view-pack" class="hidden">
+    <button class="back" onclick="showHome()">&larr; All Packs</button>
+    <div class="card">
+      <h2 id="pack-title"></h2>
+      <h3>Members</h3>
+      <div id="member-list"></div>
+      <div class="row">
+        <input id="invite-phone" placeholder="Invite by phone number" />
+      </div>
+      <button class="secondary" onclick="invite()">Add member</button>
+    </div>
+    <div class="card">
+      <h2>Trips</h2>
+      <div id="trip-list"></div>
+      <input id="new-trip-name" placeholder="New trip name (e.g. Weekend in Yosemite)" />
+      <button onclick="startTrip()">Start new trip</button>
+    </div>
+  </div>
+
+  <!-- TRIP DETAIL: live sharing -->
+  <div id="view-trip" class="hidden">
+    <button class="back" onclick="showPack()">&larr; Back to Pack/Toli</button>
+    <div class="card">
+      <h2 id="trip-title"></h2>
+      <div id="trip-status" class="status"></div>
+      <button onclick="sharePing()">📍 Share my location now</button>
+      <input type="file" id="photo-input" accept="image/*" capture="environment" onchange="uploadPhoto()" style="margin-bottom:8px" />
+      <div id="trip-actions"></div>
+    </div>
+  </div>
+
+  <!-- MEMORY STREAM -->
+  <div id="view-memory" class="hidden">
+    <button class="back" onclick="showPack()">&larr; Back to Pack/Toli</button>
+    <div class="card">
+      <h2 id="memory-title">Memory Stream</h2>
+      <div id="map"></div>
+      <div id="bubble-list"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const API = ""; // same origin - client is served by the same Express server
+
+let state = { userId: null, displayName: null, packId: null, packName: null, tripId: null, tripName: null };
+
+// ---------- API helpers ----------
+async function apiPost(path, body) {
+  const res = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) throw new Error((data && data.error) || res.statusText);
+  return data;
+}
+async function apiGet(path) {
+  const res = await fetch(API + path);
+  const data = await res.json();
+  if (!res.ok) throw new Error((data && data.error) || res.statusText);
+  return data;
+}
+async function apiPut(path, body) {
+  const res = await fetch(API + path, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || res.statusText); }
+}
+
+// ---------- drawer (hamburger nav) ----------
+async function toggleDrawer() {
+  const drawer = document.getElementById("drawer");
+  const overlay = document.getElementById("drawer-overlay");
+  const opening = drawer.classList.contains("hidden");
+  drawer.classList.toggle("hidden");
+  overlay.classList.toggle("hidden");
+  if (opening && state.userId) {
+    document.getElementById("drawer-account").textContent = state.displayName || "You";
+    try {
+      const packs = await apiGet(`/packs?userId=${state.userId}`);
+      const list = document.getElementById("drawer-packs");
+      list.innerHTML = packs.length ? "" : "<p class='status'>No Packs/Toli yet.</p>";
+      packs.forEach(p => {
+        const el = document.createElement("div");
+        el.className = "drawer-pack";
+        el.textContent = p.name;
+        el.onclick = () => { toggleDrawer(); openPack(p.id, p.name); };
+        list.appendChild(el);
+      });
+    } catch (err) { /* non-critical, ignore */ }
+  }
+}
+
+// ---------- view switching ----------
+function hideAll() {
+  ["setup", "home", "pack", "trip", "memory"].forEach(v => document.getElementById("view-" + v).classList.add("hidden"));
+}
+function showSetup() { hideAll(); document.getElementById("view-setup").classList.remove("hidden"); }
+async function showHome() {
+  hideAll(); document.getElementById("view-home").classList.remove("hidden");
+  const packs = await apiGet(`/packs?userId=${state.userId}`);
+  const list = document.getElementById("pack-list");
+  list.innerHTML = packs.length ? "" : "<p class='status'>No Packs/Toli yet - create one below.</p>";
+  packs.forEach(p => {
+    const el = document.createElement("div");
+    el.className = "pack-item";
+    el.innerHTML = `<span>${p.name}</span><span>&rarr;</span>`;
+    el.onclick = () => openPack(p.id, p.name);
+    list.appendChild(el);
+  });
+}
+async function openPack(packId, packName) {
+  state.packId = packId; state.packName = packName;
+  hideAll(); document.getElementById("view-pack").classList.remove("hidden");
+  document.getElementById("pack-title").textContent = packName;
+
+  const members = await apiGet(`/packs/${packId}/members`);
+  const memberList = document.getElementById("member-list");
+  memberList.innerHTML = "";
+  members.forEach(m => {
+    const el = document.createElement("div");
+    el.className = "trip-item";
+    const badgeClass = m.status === "active" ? "badge active" : "badge";
+    el.innerHTML = `<span>${m.users?.display_name || "Pending member"}</span><span class="${badgeClass}">${m.status}</span>`;
+    memberList.appendChild(el);
+  });
+
+  const trips = await apiGet(`/packs/${packId}/trips`);
+  const list = document.getElementById("trip-list");
+  list.innerHTML = trips.length ? "" : "<p class='status'>No trips yet.</p>";
+  trips.forEach(t => {
+    const el = document.createElement("div");
+    el.className = "trip-item";
+    const badge = t.status === "active" ? "<span class='badge active'>live</span>" : "<span class='badge'>ended</span>";
+    el.innerHTML = `<span>${t.name}</span>${badge}`;
+    el.onclick = () => t.status === "active" ? openTrip(t.id, t.name) : openMemory(t.id, t.name);
+    list.appendChild(el);
+  });
+}
+function showPack() { openPack(state.packId, state.packName); }
+function openTrip(tripId, tripName) {
+  state.tripId = tripId; state.tripName = tripName;
+  hideAll(); document.getElementById("view-trip").classList.remove("hidden");
+  document.getElementById("trip-title").textContent = tripName;
+  document.getElementById("trip-status").textContent = "Live - share your location and photos below.";
+  document.getElementById("trip-actions").innerHTML =
+    `<button class="secondary" onclick="endTrip()">End trip &amp; generate Memory Stream</button>`;
+}
+
+// ---------- actions ----------
+function setupUser() {
+  const name = document.getElementById("setup-name").value.trim();
+  const phone = document.getElementById("setup-phone").value.trim();
+  if (!name || !phone) return alert("Enter both name and phone number.");
+  apiPost("/users", { phoneNumber: phone, displayName: name }).then(user => {
+    state.userId = user.id; state.displayName = user.display_name;
+    localStorage.setItem("squadlore_user", JSON.stringify({ id: user.id, displayName: user.display_name }));
+    showHome();
+  }).catch(err => alert("Error: " + err.message));
+}
+
+function createPack() {
+  const name = document.getElementById("new-pack-name").value.trim();
+  if (!name) return alert("Name your Pack/Toli first.");
+  apiPost("/packs", { name, creatorId: state.userId }).then(() => {
+    document.getElementById("new-pack-name").value = "";
+    showHome();
+  }).catch(err => alert("Error: " + err.message));
+}
+
+function invite() {
+  const phone = document.getElementById("invite-phone").value.trim();
+  if (!phone) return alert("Enter a phone number to invite.");
+  apiPost("/users", { phoneNumber: phone, displayName: "Pending member" })
+    .then(user => apiPost(`/packs/${state.packId}/members`, { userId: user.id }))
+    .then(() => { document.getElementById("invite-phone").value = ""; openPack(state.packId, state.packName); })
+    .catch(err => alert("Error: " + err.message));
+}
+
+function startTrip() {
+  const name = document.getElementById("new-trip-name").value.trim();
+  if (!name) return alert("Name the trip first.");
+  apiPost("/trips", { packId: state.packId, name }).then(trip => {
+    document.getElementById("new-trip-name").value = "";
+    openTrip(trip.id, trip.name);
+  }).catch(err => alert("Error: " + err.message));
+}
+
+function sharePing() {
+  if (!navigator.geolocation) return alert("Location isn't available on this device/browser.");
+  document.getElementById("trip-status").textContent = "Getting your location...";
+  navigator.geolocation.getCurrentPosition(pos => {
+    apiPost(`/trips/${state.tripId}/pings`, {
+      userId: state.userId,
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      capturedAt: new Date().toISOString(),
+    }).then(() => {
+      document.getElementById("trip-status").textContent = "Location shared just now.";
+    }).catch(err => alert("Error: " + err.message));
+  }, err => alert("Couldn't get location: " + err.message));
+}
+
+function uploadPhoto() {
+  const input = document.getElementById("photo-input");
+  const file = input.files[0];
+  if (!file) return;
+
+  document.getElementById("trip-status").textContent = "Getting location for this photo...";
+
+  function doUpload(lat, lng) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      // MVP note: photos are stored as base64 data URLs directly in Postgres for now.
+      // Fine for a handful of test photos; swap for real object storage (S3/Supabase
+      // Storage) before this goes further than a small trial.
+      apiPost(`/trips/${state.tripId}/media`, {
+        userId: state.userId,
+        url: reader.result,
+        capturedAt: new Date().toISOString(),
+        lat, lng,
+      }).then(() => {
+        document.getElementById("trip-status").textContent = "Photo uploaded!";
+        input.value = "";
+      }).catch(err => alert("Error: " + err.message));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Capture GPS at the moment the photo is taken - this is what lets the
+  // Memory Stream map actually point to where each photo was taken,
+  // rather than guessing from nearby location pings.
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => doUpload(pos.coords.latitude, pos.coords.longitude),
+      () => { document.getElementById("trip-status").textContent = "Uploading (location unavailable)..."; doUpload(null, null); }
+    );
+  } else {
+    doUpload(null, null);
+  }
+}
+
+function endTrip() {
+  apiPost(`/trips/${state.tripId}/end`).then(() => openMemory(state.tripId, state.tripName)).catch(err => alert("Error: " + err.message));
+}
+
+let leafletMap = null;
+async function openMemory(tripId, tripName) {
+  state.tripId = tripId; state.tripName = tripName;
+  hideAll(); document.getElementById("view-memory").classList.remove("hidden");
+  document.getElementById("memory-title").textContent = "Memory Stream: " + tripName;
+
+  const stream = await apiGet(`/trips/${tripId}/memory-stream`);
+  const media = await apiGet(`/trips/${tripId}/media`);
+  const mediaById = {}; media.forEach(m => mediaById[m.id] = m);
+
+  if (leafletMap) { leafletMap.remove(); leafletMap = null; }
+  const mapEl = document.getElementById("map");
+  leafletMap = L.map(mapEl);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(leafletMap);
+
+  const latlngs = stream.route.map(p => [p.lat, p.lng]);
+  if (latlngs.length) {
+    L.polyline(latlngs, { color: "#3B6D11", dashArray: "6 6" }).addTo(leafletMap);
+    leafletMap.fitBounds(latlngs, { padding: [20, 20] });
+  } else {
+    leafletMap.setView([20, 0], 2);
+  }
+
+  stream.bubbles.forEach(b => {
+    L.circleMarker([b.lat, b.lng], { radius: 10, color: "#3B6D11", fillColor: "#9FE1CB", fillOpacity: 1 }).addTo(leafletMap);
+  });
+
+  const bubbleList = document.getElementById("bubble-list");
+  // Show ALL uploaded photos, not just ones that matched a bubble - a photo
+  // uploaded before any location ping was shared would otherwise silently
+  // disappear here, which is confusing. Bubbles on the map are still
+  // best-effort location clustering; this list is the reliable source of truth.
+  bubbleList.innerHTML = media.length ? "" : "<p class='status'>No photos yet for this trip.</p>";
+  media.forEach(m => renderPhotoCard(bubbleList, m));
+}
+
+const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "🎉"];
+
+async function renderPhotoCard(container, m) {
+  const card = document.createElement("div");
+  card.className = "photo-card";
+  const uploaderName = m.users?.display_name || "Someone";
+  card.innerHTML = `
+    <img src="${m.url}" />
+    <div class="photo-meta">
+      <strong>${uploaderName}</strong>
+      <span class="status">${new Date(m.captured_at).toLocaleString()}</span>
+    </div>
+    <div class="reaction-row" id="reactions-${m.id}"></div>
+    <div class="tag-row" id="tags-${m.id}"></div>
+    <div class="comment-list" id="comments-${m.id}"></div>
+    <div class="row">
+      <input id="comment-input-${m.id}" placeholder="Add a comment..." />
+      <button class="secondary" style="flex:0 0 auto; width:auto; padding:10px 14px;" onclick="postComment('${m.id}')">Send</button>
+    </div>
+  `;
+  container.appendChild(card);
+
+  // Reactions
+  const reactionRow = card.querySelector(`#reactions-${m.id}`);
+  REACTION_EMOJIS.forEach(emoji => {
+    const btn = document.createElement("button");
+    btn.className = "emoji-btn";
+    btn.dataset.emoji = emoji;
+    btn.textContent = emoji;
+    btn.onclick = () => toggleReaction(m.id, emoji);
+    reactionRow.appendChild(btn);
+  });
+  refreshReactions(m.id);
+
+  // Tags
+  try {
+    const tags = await apiGet(`/media/${m.id}/tags`);
+    const tagRow = card.querySelector(`#tags-${m.id}`);
+    tagRow.textContent = tags.length
+      ? "Tagged: " + tags.map(t => t.users?.display_name || t.place_name).filter(Boolean).join(", ")
+      : "";
+  } catch (err) { /* non-critical */ }
+
+  // Comments
+  refreshComments(m.id);
+}
+
+async function refreshReactions(mediaId) {
+  const summary = await apiGet(`/media/${mediaId}/reactions`);
+  const row = document.getElementById(`reactions-${mediaId}`);
+  if (!row) return;
+  [...row.children].forEach(btn => {
+    const emoji = btn.dataset.emoji;
+    const count = summary.counts[emoji] || 0;
+    btn.textContent = count > 0 ? `${emoji} ${count}` : emoji;
+    btn.classList.toggle("has-count", count > 0);
+  });
+}
+
+function toggleReaction(mediaId, emoji) {
+  apiPut(`/media/${mediaId}/reactions`, { userId: state.userId, emoji })
+    .then(() => refreshReactions(mediaId))
+    .catch(err => alert("Error: " + err.message));
+}
+
+async function refreshComments(mediaId) {
+  const comments = await apiGet(`/media/${mediaId}/comments`);
+  const list = document.getElementById(`comments-${mediaId}`);
+  if (!list) return;
+  list.innerHTML = comments.map(c =>
+    `<div class="comment"><strong>${c.users?.display_name || "Someone"}:</strong> ${c.text}</div>`
+  ).join("");
+}
+
+function postComment(mediaId) {
+  const input = document.getElementById(`comment-input-${mediaId}`);
+  const text = input.value.trim();
+  if (!text) return;
+  apiPost(`/media/${mediaId}/comments`, { userId: state.userId, text })
+    .then(() => { input.value = ""; refreshComments(mediaId); })
+    .catch(err => alert("Error: " + err.message));
+}
+
+// ---------- boot ----------
+(function boot() {
+  const saved = localStorage.getItem("squadlore_user");
+  if (saved) {
+    const u = JSON.parse(saved);
+    state.userId = u.id; state.displayName = u.displayName;
+    showHome();
+  } else {
+    showSetup();
+  }
+})();
+</script>
+</body>
+</html>
