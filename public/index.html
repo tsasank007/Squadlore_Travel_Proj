@@ -7,8 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" />
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js"></script>
 <style>
   :root {
     --dusk: #16202C;
@@ -111,13 +111,25 @@
     .badge.active::before { animation: none; }
   }
 
-  #map { height: 220px; border-radius: 16px; margin-bottom: 12px; border: 1px solid var(--border); overflow: hidden; }
-  #live-map { height: 220px; border-radius: 16px; margin-bottom: 8px; border: 1px solid var(--border); overflow: hidden; }
-  /* Keyless OpenStreetMap tiles, styled dark via filter - CARTO's free dark
-     tiles started requiring an API key in Aug 2026, so this avoids that
-     dependency entirely rather than asking users to manage a key. */
-  #map .leaflet-tile-pane, #live-map .leaflet-tile-pane {
-    filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9) saturate(0.8);
+  #map { height: 240px; border-radius: 16px; margin-bottom: 12px; border: 1px solid var(--border); overflow: hidden; }
+  #live-map { height: 240px; border-radius: 16px; margin-bottom: 8px; border: 1px solid var(--border); overflow: hidden; }
+  /* Mapbox's own dark-v11 style is used directly (see DARK_STYLE_URL), so no
+     CSS filter hack is needed here the way it was for plain OSM tiles. */
+
+  /* Labeled pill markers - member dots and photo bubbles, matching the
+     labeled-marker look (name/label pill under a colored dot). */
+  .map-pin { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+  .map-pin-dot {
+    width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--bone);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center;
+  }
+  .map-pin-label {
+    margin-top: 3px; font-family: var(--display); font-size: 11px; font-weight: 600; color: var(--bone);
+    background: rgba(22, 32, 44, 0.85); padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  }
+  .photo-pin-dot { background: var(--ember); position: relative; }
+  .photo-pin-dot::after {
+    content: "📷"; font-size: 11px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   }
 
   .photo-card { background: var(--dusk); border: 1px solid var(--border); border-radius: 20px; padding: 12px; margin-bottom: 16px; }
@@ -148,8 +160,6 @@
   .live-legend { display: flex; flex-wrap: wrap; gap: 8px; }
   .legend-chip { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dust); }
   .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
-  .photo-dot-marker { border-radius: 50%; border: 2px solid var(--bone); box-shadow: 0 0 0 2px var(--ember); }
-  .member-dot-marker { border-radius: 50%; border: 2px solid var(--bone); }
 
   /* Radial photo-cluster popup */
   #radial-popup {
@@ -199,13 +209,17 @@
 <div id="drawer-overlay" class="hidden" onclick="toggleDrawer()"></div>
 <div id="drawer" class="hidden">
   <div class="card">
-    <h2>Account</h2>
+    <h2>Account info</h2>
     <div id="drawer-account" class="status"></div>
   </div>
   <div class="card">
-    <h2>Your i'Hives</h2>
+    <h2>Trips / i'Hives</h2>
     <div id="drawer-packs"></div>
     <button class="secondary" onclick="toggleDrawer(); showHome();">See all / + New</button>
+  </div>
+  <div class="card" id="drawer-members-card">
+    <h2>Hive members</h2>
+    <div id="drawer-members" class="status"></div>
   </div>
 </div>
 <main>
@@ -352,12 +366,27 @@ async function toggleDrawer() {
         list.appendChild(el);
       });
     } catch (err) { /* non-critical, ignore */ }
+
+    const membersCard = document.getElementById("drawer-members-card");
+    if (state.packId) {
+      membersCard.classList.remove("hidden");
+      try {
+        const members = await apiGet(`/packs/${state.packId}/members`);
+        const list = document.getElementById("drawer-members");
+        list.innerHTML = members.map(m =>
+          `<div class="drawer-pack">${m.users?.display_name || "Pending member"} <span class="badge${m.status === "active" ? " active" : ""}">${m.status}</span></div>`
+        ).join("");
+      } catch (err) { /* non-critical, ignore */ }
+    } else {
+      membersCard.classList.add("hidden");
+    }
   }
 }
 
 // ---------- view switching ----------
 function hideAll() {
   stopLivePolling();
+  stopMemoryPolling();
   ["setup", "home", "pack", "trip", "memory"].forEach(v => document.getElementById("view-" + v).classList.add("hidden"));
 }
 function showSetup() { hideAll(); document.getElementById("view-setup").classList.remove("hidden"); }
@@ -536,42 +565,62 @@ function endTrip() {
   apiPost(`/trips/${state.tripId}/end`).then(() => openMemory(state.tripId, state.tripName)).catch(err => alert("Error: " + err.message));
 }
 
-let leafletMap = null;
+let memoryMap = null;
+let memoryMapInterval = null, memoryPhotoMarkers = [], memoryTrailUserIds = new Set();
+function stopMemoryPolling() {
+  if (memoryMapInterval) { clearInterval(memoryMapInterval); memoryMapInterval = null; }
+}
+
 async function openMemory(tripId, tripName) {
   state.tripId = tripId; state.tripName = tripName;
   hideAll(); document.getElementById("view-memory").classList.remove("hidden");
   document.getElementById("memory-title").textContent = "Memory Stream: " + tripName;
 
-  const stream = await apiGet(`/trips/${tripId}/memory-stream`);
-  const media = await apiGet(`/trips/${tripId}/media`);
-  activeMediaById = {}; media.forEach(m => activeMediaById[m.id] = m);
-  activeBubbles = stream.bubbles;
-
-  if (leafletMap) { leafletMap.remove(); leafletMap = null; }
+  if (memoryMap) { memoryMap.remove(); memoryMap = null; }
+  memoryTrailUserIds = new Set();
   const mapEl = document.getElementById("map");
-  leafletMap = L.map(mapEl);
-  activeMap = leafletMap;
-  L.tileLayer(DARK_TILE_URL, { attribution: DARK_TILE_ATTR, subdomains: 'abc', maxZoom: 20 }).addTo(leafletMap);
+  memoryMap = new mapboxgl.Map({ container: mapEl, style: DARK_STYLE_URL, center: [0, 20], zoom: 1 });
+  memoryMap.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-left");
+  activeMap = memoryMap;
   attachLongPress(mapEl);
 
-  const latlngs = stream.route.map(p => [p.lat, p.lng]);
-  if (latlngs.length) {
-    L.polyline(latlngs, { color: "#E8743B", weight: 3, dashArray: "8 6" }).addTo(leafletMap);
-    leafletMap.fitBounds(latlngs, { padding: [20, 20] });
-  } else {
-    leafletMap.setView([20, 0], 2);
-  }
-
-  stream.bubbles.forEach(b => {
-    L.circleMarker([b.lat, b.lng], { radius: 9, color: "#6FBE8F", weight: 2, fillColor: "#6FBE8F", fillOpacity: 0.85 }).addTo(leafletMap);
+  memoryMap.on("load", () => {
+    refreshMemoryStream(tripId);
+    stopMemoryPolling();
+    // This is the actual fix for "I don't see their photo until I reload" -
+    // Memory Stream used to load data once and never check again.
+    memoryMapInterval = setInterval(() => refreshMemoryStream(tripId), 6000);
   });
+}
 
-  const bubbleList = document.getElementById("bubble-list");
-  // Hold a point on the map above to browse photos there, Stories-style.
-  // This list stays as a reliable fallback for anything that couldn't be
-  // placed on the map (e.g. no location captured for that photo).
-  bubbleList.innerHTML = media.length ? "<h3>All photos</h3>" : "<p class='status'>No photos yet for this trip.</p>";
-  media.forEach(m => renderPhotoCard(bubbleList, m));
+async function refreshMemoryStream(tripId) {
+  if (!memoryMap || !memoryMap.isStyleLoaded()) return;
+  try {
+    const route = await apiGet(`/trips/${tripId}/route`);
+    const media = await apiGet(`/trips/${tripId}/media`);
+    const stream = await apiGet(`/trips/${tripId}/memory-stream`);
+    activeMediaById = {}; media.forEach(m => activeMediaById[m.id] = m);
+    activeBubbles = stream.bubbles;
+
+    const bounds = new mapboxgl.LngLatBounds();
+    drawPerMemberTrails(memoryMap, route, memoryTrailUserIds, bounds);
+
+    memoryPhotoMarkers.forEach(mk => mk.remove());
+    memoryPhotoMarkers = [];
+    stream.bubbles.forEach(b => {
+      memoryPhotoMarkers.push(addPhotoMarker(memoryMap, b));
+      bounds.extend([b.lng, b.lat]);
+    });
+
+    if (!bounds.isEmpty()) memoryMap.fitBounds(bounds, { padding: 30, maxZoom: 15, duration: 400 });
+
+    const bubbleList = document.getElementById("bubble-list");
+    // Hold a point on the map above to browse photos there, Stories-style.
+    // This list stays as a reliable fallback for anything that couldn't be
+    // placed on the map (e.g. no location captured for that photo).
+    bubbleList.innerHTML = media.length ? "<h3>All photos</h3>" : "<p class='status'>No photos yet for this trip.</p>";
+    media.forEach(m => renderPhotoCard(bubbleList, m));
+  } catch (err) { /* keep trying on next poll, same as the live map */ }
 }
 
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "🎉"];
@@ -657,7 +706,54 @@ function postComment(mediaId) {
     .catch(err => alert("Error: " + err.message));
 }
 
-// ---------- per-user color, deterministic ----------
+// ---------- live multi-member map ----------
+let liveMap = null, liveMapInterval = null, activeMap = null, activeBubbles = [], activeMediaById = {}, packMembersById = {};
+const MAPBOX_TOKEN = "pk.eyJ1IjoidHNhc2FuazAwNy1tIiwiYSI6ImNtdWN6aTJtZjBicjkyeXB5cmo1N3JzZGYifQ.NPGbuRj3WWwVEp2tgQk9VQ";
+const DARK_STYLE_URL = "mapbox://styles/mapbox/dark-v11";
+mapboxgl.accessToken = MAPBOX_TOKEN;
+
+// Shared helpers used by both the live map and the Memory Stream map -----
+
+function makePinElement(className, label) {
+  const wrap = document.createElement("div");
+  wrap.className = "map-pin";
+  wrap.innerHTML = `<div class="map-pin-dot ${className}"></div>${label ? `<div class="map-pin-label">${label}</div>` : ""}`;
+  return wrap;
+}
+
+function addPhotoMarker(map, bubble) {
+  const el = makePinElement("photo-pin-dot", `${bubble.mediaIds.length} photo${bubble.mediaIds.length > 1 ? "s" : ""}`);
+  return new mapboxgl.Marker({ element: el }).setLngLat([bubble.lng, bubble.lat]).addTo(map);
+}
+
+// Draws one colored trail line per member, matching the reference look
+// (each "vehicle" leaves its own colored trace). `route` is the raw ping
+// list (every point, every user) from GET /trips/:id/route.
+function drawPerMemberTrails(map, route, seenUserIdsSet, bounds) {
+  const byUser = {};
+  route.forEach(p => { (byUser[p.user_id] = byUser[p.user_id] || []).push(p); });
+
+  Object.keys(byUser).forEach(userId => {
+    const points = byUser[userId];
+    const coords = points.map(p => [p.lng, p.lat]);
+    coords.forEach(c => bounds.extend(c));
+    const sourceId = `trail-${userId}`, layerId = `trail-line-${userId}`;
+    const geojson = { type: "Feature", geometry: { type: "LineString", coordinates: coords } };
+
+    if (!seenUserIdsSet.has(userId)) {
+      seenUserIdsSet.add(userId);
+      map.addSource(sourceId, { type: "geojson", data: geojson });
+      map.addLayer({
+        id: layerId, type: "line", source: sourceId,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": colorForUser(userId), "line-width": 3, "line-opacity": 0.85 },
+      });
+    } else {
+      map.getSource(sourceId).setData(geojson);
+    }
+  });
+}
+
 function colorForUser(userId) {
   let hash = 0;
   for (let i = 0; i < userId.length; i++) hash = userId.charCodeAt(i) + ((hash << 5) - hash);
@@ -665,21 +761,18 @@ function colorForUser(userId) {
   return `hsl(${hue}, 65%, 55%)`;
 }
 
-// ---------- live multi-member map ----------
-let liveMap = null, liveMapInterval = null, activeMap = null, activeBubbles = [], activeMediaById = {}, packMembersById = {};
-const DARK_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'; // keyless - CARTO now requires an API key
-const DARK_TILE_ATTR = '&copy; OpenStreetMap';
-
 function stopLivePolling() {
   if (liveMapInterval) { clearInterval(liveMapInterval); liveMapInterval = null; }
 }
 
+let liveTrailUserIds = new Set();
 async function initLiveMap(tripId, packId) {
   if (liveMap) { liveMap.remove(); liveMap = null; }
+  liveTrailUserIds = new Set();
   const el = document.getElementById("live-map");
-  liveMap = L.map(el).setView([20, 0], 2);
+  liveMap = new mapboxgl.Map({ container: el, style: DARK_STYLE_URL, center: [0, 20], zoom: 1 });
+  liveMap.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-left");
   activeMap = liveMap;
-  L.tileLayer(DARK_TILE_URL, { attribution: DARK_TILE_ATTR, subdomains: 'abc', maxZoom: 20 }).addTo(liveMap);
 
   const members = await apiGet(`/packs/${packId}/members`);
   packMembersById = {};
@@ -688,8 +781,10 @@ async function initLiveMap(tripId, packId) {
 
   attachLongPress(el);
   stopLivePolling();
-  refreshLiveMap(tripId);
-  liveMapInterval = setInterval(() => refreshLiveMap(tripId), 6000); // "near-live" via polling
+  liveMap.on("load", () => {
+    refreshLiveMap(tripId);
+    liveMapInterval = setInterval(() => refreshLiveMap(tripId), 6000); // "near-live" via polling
+  });
 }
 
 function renderLiveLegend(members) {
@@ -705,36 +800,38 @@ function renderLiveLegend(members) {
 
 let liveMemberMarkers = {}, livePhotoMarkers = [];
 async function refreshLiveMap(tripId) {
-  if (!liveMap) return;
+  if (!liveMap || !liveMap.isStyleLoaded()) return;
   try {
     const positions = await apiGet(`/trips/${tripId}/positions`);
-    const bounds = [];
+    const bounds = new mapboxgl.LngLatBounds();
     positions.forEach(p => {
-      const color = colorForUser(p.user_id);
-      const icon = L.divIcon({ className: "", html: `<div class="member-dot-marker" style="width:22px;height:22px;background:${color}"></div>` });
+      const name = packMembersById[p.user_id] || "Member";
       if (liveMemberMarkers[p.user_id]) {
-        liveMemberMarkers[p.user_id].setLatLng([p.lat, p.lng]);
+        liveMemberMarkers[p.user_id].setLngLat([p.lng, p.lat]);
       } else {
-        liveMemberMarkers[p.user_id] = L.marker([p.lat, p.lng], { icon }).addTo(liveMap)
-          .bindTooltip(packMembersById[p.user_id] || "Member");
+        const el = makePinElement("", name);
+        el.querySelector(".map-pin-dot").style.background = colorForUser(p.user_id);
+        liveMemberMarkers[p.user_id] = new mapboxgl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(liveMap);
       }
-      bounds.push([p.lat, p.lng]);
+      bounds.extend([p.lng, p.lat]);
     });
+
+    const route = await apiGet(`/trips/${tripId}/route`);
+    drawPerMemberTrails(liveMap, route, liveTrailUserIds, bounds);
 
     const stream = await apiGet(`/trips/${tripId}/memory-stream`);
     const media = await apiGet(`/trips/${tripId}/media`);
     activeMediaById = {}; media.forEach(m => activeMediaById[m.id] = m);
     activeBubbles = stream.bubbles;
 
-    livePhotoMarkers.forEach(mk => liveMap.removeLayer(mk));
+    livePhotoMarkers.forEach(mk => mk.remove());
     livePhotoMarkers = [];
     stream.bubbles.forEach(b => {
-      const mk = L.circleMarker([b.lat, b.lng], { radius: 8, className: "photo-dot-marker", color: "#F2EDE2", weight: 2, fillColor: "#E8743B", fillOpacity: 0.9 }).addTo(liveMap);
-      livePhotoMarkers.push(mk);
-      bounds.push([b.lat, b.lng]);
+      livePhotoMarkers.push(addPhotoMarker(liveMap, b));
+      bounds.extend([b.lng, b.lat]);
     });
 
-    if (bounds.length) liveMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+    if (!bounds.isEmpty()) liveMap.fitBounds(bounds, { padding: 40, maxZoom: 15, duration: 400 });
   } catch (err) { /* keep trying on next poll */ }
 }
 
@@ -774,7 +871,7 @@ function triggerLongPress(point) {
   const PIXEL_RADIUS = 45;
   const nearbyMediaIds = new Set();
   activeBubbles.forEach(b => {
-    const bp = activeMap.latLngToContainerPoint([b.lat, b.lng]);
+    const bp = activeMap.project([b.lng, b.lat]);
     const dx = bp.x - point.x, dy = bp.y - point.y;
     if (Math.sqrt(dx * dx + dy * dy) <= PIXEL_RADIUS) b.mediaIds.forEach(id => nearbyMediaIds.add(id));
   });
