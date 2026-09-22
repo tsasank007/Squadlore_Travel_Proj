@@ -21,6 +21,7 @@ create table packs (
   color text,
   creator_id uuid not null references users(id),
   is_persistent boolean not null default true,
+  join_code text unique,
   created_at timestamptz not null default now()
 );
 

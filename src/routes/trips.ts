@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import { TripService } from "../services/TripService";
 import { LocationService } from "../services/LocationService";
 import { MediaService } from "../services/MediaService";
@@ -9,6 +10,7 @@ const tripService = new TripService();
 const locationService = new LocationService();
 const mediaService = new MediaService();
 const memoryStreamService = new MemoryStreamService();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
 router.post("/", async (req, res) => {
   try {
@@ -57,6 +59,16 @@ router.get("/:tripId/route", async (req, res) => {
   }
 });
 
+router.get("/:tripId/positions", async (req, res) => {
+  // One point per active member - powers the live "where's everyone" map.
+  try {
+    const positions = await locationService.getLatestPositions(req.params.tripId);
+    res.json(positions);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get("/:tripId/media", async (req, res) => {
   try {
     const media = await mediaService.getMediaForTrip(req.params.tripId);
@@ -66,17 +78,24 @@ router.get("/:tripId/media", async (req, res) => {
   }
 });
 
-router.post("/:tripId/media", async (req, res) => {
-  // MVP note: this expects `url` to already point at an uploaded file
-  // (e.g. a Supabase Storage URL). The mobile app uploads the raw
-  // file to storage first, then calls this to register it against
-  // the trip. Swapping storage providers later only touches the
-  // upload step on the client, not this record-keeping call.
+router.post("/:tripId/media", upload.single("photo"), async (req, res) => {
+  // Real file upload now (multipart/form-data), not base64 in a JSON body -
+  // this is what fixed the multi-minute waits and database timeouts.
   try {
-    const media = await mediaService.uploadMedia({ tripId: req.params.tripId, ...req.body });
+    if (!req.file) return res.status(400).json({ error: "No photo was attached to the upload." });
+    const media = await mediaService.uploadMedia({
+      tripId: req.params.tripId,
+      userId: req.body.userId,
+      fileBuffer: req.file.buffer,
+      mimeType: req.file.mimetype,
+      capturedAt: req.body.capturedAt,
+      lat: req.body.lat ? parseFloat(req.body.lat) : undefined,
+      lng: req.body.lng ? parseFloat(req.body.lng) : undefined,
+    });
     res.status(201).json(media);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("Media upload failed:", err);
+    res.status(500).json({ error: "Upload failed - please try again." }); // never show raw DB/storage errors to the user
   }
 });
 
@@ -88,7 +107,8 @@ router.get("/:tripId/memory-stream", async (req, res) => {
     const stream = await memoryStreamService.generate(req.params.tripId);
     res.json(stream);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("Memory Stream generation failed:", err);
+    res.status(500).json({ error: "Couldn't load the Memory Stream right now - please try again in a moment." });
   }
 });
 

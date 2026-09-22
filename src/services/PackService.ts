@@ -102,4 +102,43 @@ export class PackService {
     if (error) throw error;
     return data;
   }
+
+  private generateJoinCode(): string {
+    // Short, URL-safe, good enough for a shared-with-friends invite link
+    // (not a security boundary - anyone with the link can join).
+    return Math.random().toString(36).slice(2, 10);
+  }
+
+  async getOrCreateJoinLink(packId: string) {
+    const { data: pack, error } = await supabase.from("packs").select("join_code").eq("id", packId).single();
+    if (error) throw error;
+
+    if (pack.join_code) return pack.join_code;
+
+    const joinCode = this.generateJoinCode();
+    const { error: updateError } = await supabase.from("packs").update({ join_code: joinCode }).eq("id", packId);
+    if (updateError) throw updateError;
+    return joinCode;
+  }
+
+  async getPackByJoinCode(joinCode: string) {
+    const { data, error } = await supabase.from("packs").select("id, name").eq("join_code", joinCode).maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+
+  async joinByCode(joinCode: string, userId: string) {
+    const pack = await this.getPackByJoinCode(joinCode);
+    if (!pack) throw new Error("This invite link isn't valid or has been removed.");
+
+    const { data: existing } = await supabase
+      .from("pack_members")
+      .select("user_id")
+      .eq("pack_id", pack.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (!existing) await this.addMember(pack.id, userId, "member");
+    return pack;
+  }
 }

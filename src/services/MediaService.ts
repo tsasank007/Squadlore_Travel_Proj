@@ -1,9 +1,12 @@
 import { supabase } from "../db/supabaseClient";
 
+const BUCKET = "trip-photos";
+
 export interface UploadMediaInput {
   tripId: string;
   userId: string;
-  url: string;
+  fileBuffer: Buffer;
+  mimeType: string;
   capturedAt: string;
   isPrivate?: boolean;
   lat?: number;
@@ -12,13 +15,27 @@ export interface UploadMediaInput {
 
 export class MediaService {
   async uploadMedia(input: UploadMediaInput) {
+    // Real object storage, not base64-in-Postgres: that shortcut worked for
+    // a handful of test photos but bloated every query on the trip enough
+    // to hit Supabase's statement timeout once real usage kicked in.
+    const ext = (input.mimeType.split("/")[1] || "jpg").replace("jpeg", "jpg");
+    const path = `${input.tripId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, input.fileBuffer, { contentType: input.mimeType, upsert: false });
+    if (uploadError) throw uploadError;
+
+    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
+    const url = urlData.publicUrl;
+
     const { data, error } = await supabase
       .from("media")
       .insert({
         trip_id: input.tripId,
         user_id: input.userId,
-        url: input.url,
-        original_url: input.url, // original preserved from the start
+        url,
+        original_url: url, // original preserved from the start
         is_private: input.isPrivate ?? false,
         captured_at: input.capturedAt,
         lat: input.lat,

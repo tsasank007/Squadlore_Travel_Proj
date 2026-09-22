@@ -8,6 +8,7 @@ import usersRouter from "./routes/users";
 import mediaRouter from "./routes/media";
 
 const app = express();
+app.set("trust proxy", 1); // needed once Caddy/HTTPS sits in front, so req.protocol reports "https" correctly (used by the join-link URL)
 app.use(cors());
 app.use(express.json({ limit: "15mb" })); // raised for base64 photo uploads (MVP - see MediaService note)
 app.use(express.static(path.join(__dirname, "..", "public")));

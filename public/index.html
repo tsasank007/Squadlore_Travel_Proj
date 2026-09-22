@@ -4,52 +4,196 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Squadlore_Travel_Proj</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-  :root { --accent: #3B6D11; --bg: #f5f5f0; --card: #ffffff; --border: #ddd; }
+  :root {
+    --dusk: #16202C;
+    --slate: #24313F;
+    --slate-2: #2E3F50;
+    --ember: #E8743B;
+    --ember-dim: #C25F2C;
+    --trailmark: #6FBE8F;
+    --bone: #F2EDE2;
+    --dust: #93A2AE;
+    --border: #3A4C5E;
+    --display: 'Fredoka', ui-rounded, system-ui, sans-serif;
+    --body: 'Work Sans', -apple-system, system-ui, sans-serif;
+  }
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: var(--bg); color: #222; }
-  header { background: var(--accent); color: white; padding: 14px 16px; font-weight: 600; font-size: 18px; display: flex; align-items: center; gap: 12px; }
-  #menu-btn { width: auto; background: none; padding: 4px 8px; margin: 0; font-size: 22px; line-height: 1; }
-  #drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 20; }
-  #drawer { position: fixed; top: 0; left: 0; bottom: 0; width: 280px; background: var(--bg); z-index: 21; padding: 16px; overflow-y: auto; box-shadow: 2px 0 12px rgba(0,0,0,0.2); }
-  .drawer-pack { padding: 8px; border-radius: 8px; cursor: pointer; }
-  .drawer-pack:hover { background: #eee; }
+  body {
+    font-family: var(--body); margin: 0; background: var(--dusk); color: var(--bone);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, button, .display { font-family: var(--display); }
+
+  header {
+    background: linear-gradient(155deg, var(--dusk) 0%, var(--dusk) 55%, var(--ember-dim) 150%);
+    color: var(--bone); padding: 18px 16px; display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  header span { font-family: var(--display); font-weight: 600; font-size: 19px; letter-spacing: 0.2px; }
+  #menu-btn { width: auto; background: none; padding: 4px 8px; margin: 0; font-size: 22px; line-height: 1; color: var(--bone); }
+
+  #drawer-overlay { position: fixed; inset: 0; background: rgba(10, 15, 20, 0.55); z-index: 20; }
+  #drawer { position: fixed; top: 0; left: 0; bottom: 0; width: 280px; background: var(--slate); z-index: 21; padding: 16px; overflow-y: auto; box-shadow: 4px 0 20px rgba(0,0,0,0.4); border-right: 1px solid var(--border); }
+  .drawer-pack { padding: 10px; border-radius: 10px; cursor: pointer; }
+  .drawer-pack:hover { background: var(--slate-2); }
+
   main { max-width: 480px; margin: 0 auto; padding: 16px; padding-bottom: 80px; }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
-  input, select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; font-size: 15px; }
-  button { width: 100%; padding: 12px; border: none; border-radius: 8px; background: var(--accent); color: white; font-size: 15px; font-weight: 600; cursor: pointer; margin-bottom: 8px; }
-  button.secondary { background: #eee; color: #333; }
+
+  .card { background: var(--slate); border: 1px solid var(--border); border-radius: 20px; padding: 18px; margin-bottom: 16px; }
+
+  h2 { margin-top: 0; font-size: 18px; font-weight: 600; }
+  h3 { font-size: 13px; font-weight: 500; color: var(--dust); text-transform: none; margin: 0 0 10px; }
+
+  input, select {
+    width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px;
+    margin-bottom: 8px; font-size: 15px; font-family: var(--body);
+    background: var(--dusk); color: var(--bone);
+  }
+  input::placeholder { color: var(--dust); }
+  input:focus-visible, select:focus-visible, button:focus-visible {
+    outline: 2px solid var(--trailmark); outline-offset: 2px;
+  }
+
+  button {
+    width: 100%; padding: 13px; border: none; border-radius: 999px;
+    background: var(--ember); color: var(--dusk); font-size: 15px; font-weight: 600;
+    cursor: pointer; margin-bottom: 8px; font-family: var(--display);
+    transition: transform 0.1s ease, background 0.15s ease;
+  }
+  button:hover { background: #F08652; }
+  button:active { transform: scale(0.98); }
+  button.secondary { background: var(--slate-2); color: var(--bone); }
+  button.secondary:hover { background: #37495B; }
   button:disabled { opacity: 0.5; }
+
   .row { display: flex; gap: 8px; }
   .row > * { flex: 1; }
-  .pack-item, .trip-item { padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-  .pack-item:hover, .trip-item:hover { background: #fafafa; }
-  .badge { font-size: 12px; padding: 2px 8px; border-radius: 20px; background: #eee; color: #555; }
-  .badge.active { background: #dff0d8; color: #3c763d; }
-  h2 { margin-top: 0; font-size: 17px; }
-  #map { height: 220px; border-radius: 12px; margin-bottom: 12px; }
-  .bubble { display: flex; gap: 10px; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
-  .bubble img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); }
-  .photo-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px; margin-bottom: 14px; }
-  .photo-card img { width: 100%; border-radius: 8px; margin-bottom: 8px; object-fit: cover; max-height: 280px; }
-  .photo-meta { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
-  .reaction-row { display: flex; gap: 4px; margin-bottom: 6px; }
-  .emoji-btn { width: auto; background: #f2f2f2; color: #333; padding: 4px 8px; font-size: 16px; border-radius: 20px; margin: 0; }
-  .emoji-btn.has-count { background: var(--accent); color: white; }
-  .tag-row { font-size: 12px; color: #888; margin-bottom: 6px; }
-  .comment-list { margin-bottom: 8px; }
-  .comment { font-size: 13px; padding: 4px 0; border-bottom: 1px solid #f2f2f2; }
-  .back { background: none; color: var(--accent); font-weight: 600; padding: 0; width: auto; margin-bottom: 12px; }
-  .status { font-size: 13px; color: #888; margin-bottom: 8px; }
+  .row > button { flex: 0 0 auto; width: auto; padding: 12px 18px; }
+
+  /* the trail: a dashed connecting line behind list rows, echoing the map route */
+  #pack-list, #trip-list, #member-list {
+    position: relative; padding-left: 14px;
+  }
+  #pack-list::before, #trip-list::before, #member-list::before {
+    content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 0;
+    border-left: 2px dashed var(--border);
+  }
+
+  .pack-item, .trip-item {
+    position: relative; padding: 12px 14px; background: var(--dusk); border: 1px solid var(--border);
+    border-radius: 12px; margin-bottom: 8px; cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center;
+    transition: border-color 0.15s ease;
+  }
+  .pack-item:hover, .trip-item:hover { border-color: var(--ember); }
+  .pack-item::before, .trip-item::before {
+    content: ""; position: absolute; left: -14px; top: 50%; width: 8px; height: 8px;
+    background: var(--dust); border-radius: 50%; transform: translateY(-50%);
+  }
+
+  .badge { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--slate-2); color: var(--dust); }
+  .badge.active { background: rgba(111, 190, 143, 0.18); color: var(--trailmark); display: inline-flex; align-items: center; gap: 6px; }
+  .badge.active::before {
+    content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--trailmark);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(111, 190, 143, 0.55); }
+    50% { box-shadow: 0 0 0 5px rgba(111, 190, 143, 0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .badge.active::before { animation: none; }
+  }
+
+  #map { height: 220px; border-radius: 16px; margin-bottom: 12px; border: 1px solid var(--border); overflow: hidden; }
+  #live-map { height: 220px; border-radius: 16px; margin-bottom: 8px; border: 1px solid var(--border); overflow: hidden; }
+  /* Keyless OpenStreetMap tiles, styled dark via filter - CARTO's free dark
+     tiles started requiring an API key in Aug 2026, so this avoids that
+     dependency entirely rather than asking users to manage a key. */
+  #map .leaflet-tile-pane, #live-map .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9) saturate(0.8);
+  }
+
+  .photo-card { background: var(--dusk); border: 1px solid var(--border); border-radius: 20px; padding: 12px; margin-bottom: 16px; }
+  .photo-card img {
+    width: 100%; border-radius: 12px; margin-bottom: 10px; object-fit: cover; max-height: 320px;
+    border: 6px solid var(--bone); /* printed-photo mat */
+  }
+  .photo-meta { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .photo-meta strong { font-family: var(--display); font-weight: 600; }
+
+  .reaction-row { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+  .emoji-btn {
+    width: auto; background: var(--slate); border: 1px solid var(--border); color: var(--bone);
+    padding: 6px 10px; font-size: 15px; border-radius: 999px; margin: 0;
+  }
+  .emoji-btn.has-count { background: rgba(232, 116, 59, 0.18); border-color: var(--ember); color: var(--ember); }
+
+  .tag-row { font-size: 12px; color: var(--dust); margin-bottom: 8px; }
+  .comment-list { margin-bottom: 10px; }
+  .comment { font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .comment strong { font-family: var(--display); font-weight: 500; }
+
+  .back { background: none; color: var(--ember); font-weight: 600; padding: 0; width: auto; margin-bottom: 14px; font-size: 14px; }
+  .status { font-size: 13px; color: var(--dust); margin-bottom: 8px; }
   .hidden { display: none !important; }
+
+  /* Live multi-member map */
+  .live-legend { display: flex; flex-wrap: wrap; gap: 8px; }
+  .legend-chip { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dust); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+  .photo-dot-marker { border-radius: 50%; border: 2px solid var(--bone); box-shadow: 0 0 0 2px var(--ember); }
+  .member-dot-marker { border-radius: 50%; border: 2px solid var(--bone); }
+
+  /* Radial photo-cluster popup */
+  #radial-popup {
+    position: fixed; inset: 0; z-index: 40; background: rgba(10, 15, 20, 0.55);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+  }
+  #radial-circles { position: relative; width: 240px; height: 180px; }
+  .radial-circle {
+    position: absolute; width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--bone);
+    display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 600;
+    color: var(--dusk); cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    transition: transform 0.15s ease;
+  }
+  .radial-circle:active { transform: scale(0.92); }
+
+  /* Full-screen swipeable photo viewer */
+  #viewer {
+    position: fixed; inset: 0; z-index: 50; background: #000;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #viewer-image-wrap { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; touch-action: pan-y; }
+  #viewer-image { max-width: 100%; max-height: 100%; object-fit: contain; }
+  #viewer-close {
+    position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border-radius: 50%;
+    background: rgba(22, 32, 44, 0.6); color: var(--bone); font-size: 22px; line-height: 1; z-index: 51;
+  }
+  .viewer-overlay {
+    position: absolute; left: 0; right: 0; padding: 14px 16px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent);
+    color: var(--bone);
+  }
+  #viewer-overlay-top { top: 0; }
+  #viewer-overlay-bottom {
+    bottom: 0; background: linear-gradient(to top, rgba(0,0,0,0.75), transparent);
+    max-height: 45%; overflow-y: auto;
+  }
+  #viewer-overlay-bottom input { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.25); color: var(--bone); }
+  #viewer-comments .comment { border-bottom-color: rgba(255,255,255,0.15); }
 </style>
 </head>
 <body>
 <header>
   <button id="menu-btn" onclick="toggleDrawer()" aria-label="Menu">&#9776;</button>
-  <span>🧭 Squadlore_Travel_Proj</span>
+  <span>Squadlore_Travel_Proj</span>
 </header>
 
 <div id="drawer-overlay" class="hidden" onclick="toggleDrawer()"></div>
@@ -59,7 +203,7 @@
     <div id="drawer-account" class="status"></div>
   </div>
   <div class="card">
-    <h2>Your Packs/Toli</h2>
+    <h2>Your i'Hives</h2>
     <div id="drawer-packs"></div>
     <button class="secondary" onclick="toggleDrawer(); showHome();">See all / + New</button>
   </div>
@@ -77,12 +221,13 @@
   <!-- HOME: list of packs -->
   <div id="view-home" class="hidden">
     <div class="card">
-      <h2>Your Packs/Toli</h2>
+      <h2>Your i'Hives</h2>
       <div id="pack-list"></div>
       <div class="row" style="margin-top:10px">
-        <input id="new-pack-name" placeholder="New Pack/Toli name" />
+        <input id="new-pack-name" placeholder="New i'Hive name" />
       </div>
-      <button onclick="createPack()">+ New Pack/Toli</button>
+      <input id="new-pack-start" placeholder="Starting point (optional)" />
+      <button onclick="createPack()">+ New i'Hive</button>
     </div>
   </div>
 
@@ -93,8 +238,9 @@
       <h2 id="pack-title"></h2>
       <h3>Members</h3>
       <div id="member-list"></div>
+      <button onclick="shareInviteLink(false)">🔗 Share invite link</button>
       <div class="row">
-        <input id="invite-phone" placeholder="Invite by phone number" />
+        <input id="invite-phone" placeholder="Or invite by phone number" />
       </div>
       <button class="secondary" onclick="invite()">Add member</button>
     </div>
@@ -108,7 +254,7 @@
 
   <!-- TRIP DETAIL: live sharing -->
   <div id="view-trip" class="hidden">
-    <button class="back" onclick="showPack()">&larr; Back to Pack/Toli</button>
+    <button class="back" onclick="showPack()">&larr; Back to i'Hive</button>
     <div class="card">
       <h2 id="trip-title"></h2>
       <div id="trip-status" class="status"></div>
@@ -116,11 +262,16 @@
       <input type="file" id="photo-input" accept="image/*" capture="environment" onchange="uploadPhoto()" style="margin-bottom:8px" />
       <div id="trip-actions"></div>
     </div>
+    <div class="card">
+      <h3>Live map &middot; hold a spot to see photos taken there</h3>
+      <div id="live-map"></div>
+      <div id="live-legend" class="live-legend"></div>
+    </div>
   </div>
 
   <!-- MEMORY STREAM -->
   <div id="view-memory" class="hidden">
-    <button class="back" onclick="showPack()">&larr; Back to Pack/Toli</button>
+    <button class="back" onclick="showPack()">&larr; Back to i'Hive</button>
     <div class="card">
       <h2 id="memory-title">Memory Stream</h2>
       <div id="map"></div>
@@ -129,6 +280,32 @@
   </div>
 
 </main>
+
+<!-- Radial photo-cluster popup, shown on long-press over a photo bubble -->
+<div id="radial-popup" class="hidden">
+  <div id="radial-circles"></div>
+  <button class="secondary" id="radial-close" onclick="closeRadial()" style="width:auto;padding:8px 16px;">Close</button>
+</div>
+
+<!-- Full-screen swipeable photo viewer -->
+<div id="viewer" class="hidden">
+  <button id="viewer-close" onclick="closeViewer()" aria-label="Close">&times;</button>
+  <div id="viewer-image-wrap">
+    <img id="viewer-image" />
+  </div>
+  <div id="viewer-overlay-top" class="viewer-overlay">
+    <strong id="viewer-name"></strong>
+    <span id="viewer-time" class="status"></span>
+  </div>
+  <div id="viewer-overlay-bottom" class="viewer-overlay">
+    <div id="viewer-reactions" class="reaction-row"></div>
+    <div id="viewer-comments" class="comment-list"></div>
+    <div class="row">
+      <input id="viewer-comment-input" placeholder="Add a comment..." />
+      <button class="secondary" style="flex:0 0 auto;width:auto;padding:10px 14px;" onclick="postViewerComment()">Send</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const API = ""; // same origin - client is served by the same Express server
@@ -166,7 +343,7 @@ async function toggleDrawer() {
     try {
       const packs = await apiGet(`/packs?userId=${state.userId}`);
       const list = document.getElementById("drawer-packs");
-      list.innerHTML = packs.length ? "" : "<p class='status'>No Packs/Toli yet.</p>";
+      list.innerHTML = packs.length ? "" : "<p class='status'>No i'Hives yet.</p>";
       packs.forEach(p => {
         const el = document.createElement("div");
         el.className = "drawer-pack";
@@ -180,6 +357,7 @@ async function toggleDrawer() {
 
 // ---------- view switching ----------
 function hideAll() {
+  stopLivePolling();
   ["setup", "home", "pack", "trip", "memory"].forEach(v => document.getElementById("view-" + v).classList.add("hidden"));
 }
 function showSetup() { hideAll(); document.getElementById("view-setup").classList.remove("hidden"); }
@@ -187,7 +365,7 @@ async function showHome() {
   hideAll(); document.getElementById("view-home").classList.remove("hidden");
   const packs = await apiGet(`/packs?userId=${state.userId}`);
   const list = document.getElementById("pack-list");
-  list.innerHTML = packs.length ? "" : "<p class='status'>No Packs/Toli yet - create one below.</p>";
+  list.innerHTML = packs.length ? "" : "<p class='status'>No i'Hives yet - create one below.</p>";
   packs.forEach(p => {
     const el = document.createElement("div");
     el.className = "pack-item";
@@ -225,13 +403,16 @@ async function openPack(packId, packName) {
   });
 }
 function showPack() { openPack(state.packId, state.packName); }
-function openTrip(tripId, tripName) {
+function openTrip(tripId, tripName, startPoint) {
   state.tripId = tripId; state.tripName = tripName;
   hideAll(); document.getElementById("view-trip").classList.remove("hidden");
   document.getElementById("trip-title").textContent = tripName;
-  document.getElementById("trip-status").textContent = "Live - share your location and photos below.";
+  document.getElementById("trip-status").textContent = startPoint
+    ? `Starting point: ${startPoint} - live, share your location and photos below.`
+    : "Live - share your location and photos below.";
   document.getElementById("trip-actions").innerHTML =
     `<button class="secondary" onclick="endTrip()">End trip &amp; generate Memory Stream</button>`;
+  initLiveMap(tripId, state.packId);
 }
 
 // ---------- actions ----------
@@ -242,16 +423,24 @@ function setupUser() {
   apiPost("/users", { phoneNumber: phone, displayName: name }).then(user => {
     state.userId = user.id; state.displayName = user.display_name;
     localStorage.setItem("squadlore_user", JSON.stringify({ id: user.id, displayName: user.display_name }));
-    showHome();
+    if (pendingJoinCode) joinViaCode(pendingJoinCode); else showHome();
   }).catch(err => alert("Error: " + err.message));
 }
 
 function createPack() {
   const name = document.getElementById("new-pack-name").value.trim();
-  if (!name) return alert("Name your Pack/Toli first.");
-  apiPost("/packs", { name, creatorId: state.userId }).then(() => {
+  const startPoint = document.getElementById("new-pack-start").value.trim();
+  if (!name) return alert("Name your i'Hive first.");
+  // Creating an i'Hive now goes straight into a live trip in one step -
+  // no separate "create the group, then separately start a trip" dance.
+  apiPost("/packs", { name, creatorId: state.userId }).then(pack => {
+    state.packId = pack.id; state.packName = pack.name;
+    return apiPost("/trips", { packId: pack.id, name: "Trip 1", discussionLocation: startPoint || undefined });
+  }).then(trip => {
     document.getElementById("new-pack-name").value = "";
-    showHome();
+    document.getElementById("new-pack-start").value = "";
+    openTrip(trip.id, trip.name, trip.discussion_location);
+    shareInviteLink(true);
   }).catch(err => alert("Error: " + err.message));
 }
 
@@ -270,6 +459,20 @@ function startTrip() {
   apiPost("/trips", { packId: state.packId, name }).then(trip => {
     document.getElementById("new-trip-name").value = "";
     openTrip(trip.id, trip.name);
+    shareInviteLink(true); // offer to share right away so others can join this trip
+  }).catch(err => alert("Error: " + err.message));
+}
+
+function shareInviteLink(isNewTrip) {
+  apiGet(`/packs/${state.packId}/join-link`).then(({ url }) => {
+    const text = isNewTrip
+      ? `Join our i'Hive "${state.packName}" on Squadlore_Travel_Proj: ${url}`
+      : url;
+    if (navigator.share) {
+      navigator.share({ title: state.packName, text, url }).catch(() => {});
+    } else {
+      prompt("Copy this invite link to share:", url);
+    }
   }).catch(err => alert("Error: " + err.message));
 }
 
@@ -293,34 +496,36 @@ function uploadPhoto() {
   const file = input.files[0];
   if (!file) return;
 
-  document.getElementById("trip-status").textContent = "Getting location for this photo...";
+  document.getElementById("trip-status").textContent = "Uploading photo...";
 
   function doUpload(lat, lng) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      // MVP note: photos are stored as base64 data URLs directly in Postgres for now.
-      // Fine for a handful of test photos; swap for real object storage (S3/Supabase
-      // Storage) before this goes further than a small trial.
-      apiPost(`/trips/${state.tripId}/media`, {
-        userId: state.userId,
-        url: reader.result,
-        capturedAt: new Date().toISOString(),
-        lat, lng,
-      }).then(() => {
+    const formData = new FormData();
+    formData.append("photo", file);
+    formData.append("userId", state.userId);
+    formData.append("capturedAt", new Date().toISOString());
+    if (lat != null) formData.append("lat", lat);
+    if (lng != null) formData.append("lng", lng);
+
+    fetch(`${API}/trips/${state.tripId}/media`, { method: "POST", body: formData })
+      .then(async res => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Upload failed");
         document.getElementById("trip-status").textContent = "Photo uploaded!";
         input.value = "";
-      }).catch(err => alert("Error: " + err.message));
-    };
-    reader.readAsDataURL(file);
+      })
+      .catch(err => alert("Error: " + err.message));
   }
 
-  // Capture GPS at the moment the photo is taken - this is what lets the
-  // Memory Stream map actually point to where each photo was taken,
-  // rather than guessing from nearby location pings.
+  // The upload starts right away regardless of location - this is what
+  // fixed the multi-minute waits. Location is attached only if a fix
+  // arrives within 4 seconds (a cached position up to 60s old is fine);
+  // otherwise the photo still uploads, just without coordinates.
   if (navigator.geolocation) {
+    let settled = false;
     navigator.geolocation.getCurrentPosition(
-      pos => doUpload(pos.coords.latitude, pos.coords.longitude),
-      () => { document.getElementById("trip-status").textContent = "Uploading (location unavailable)..."; doUpload(null, null); }
+      pos => { if (!settled) { settled = true; doUpload(pos.coords.latitude, pos.coords.longitude); } },
+      () => { if (!settled) { settled = true; doUpload(null, null); } },
+      { enableHighAccuracy: false, timeout: 4000, maximumAge: 60000 }
     );
   } else {
     doUpload(null, null);
@@ -339,31 +544,33 @@ async function openMemory(tripId, tripName) {
 
   const stream = await apiGet(`/trips/${tripId}/memory-stream`);
   const media = await apiGet(`/trips/${tripId}/media`);
-  const mediaById = {}; media.forEach(m => mediaById[m.id] = m);
+  activeMediaById = {}; media.forEach(m => activeMediaById[m.id] = m);
+  activeBubbles = stream.bubbles;
 
   if (leafletMap) { leafletMap.remove(); leafletMap = null; }
   const mapEl = document.getElementById("map");
   leafletMap = L.map(mapEl);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(leafletMap);
+  activeMap = leafletMap;
+  L.tileLayer(DARK_TILE_URL, { attribution: DARK_TILE_ATTR, subdomains: 'abc', maxZoom: 20 }).addTo(leafletMap);
+  attachLongPress(mapEl);
 
   const latlngs = stream.route.map(p => [p.lat, p.lng]);
   if (latlngs.length) {
-    L.polyline(latlngs, { color: "#3B6D11", dashArray: "6 6" }).addTo(leafletMap);
+    L.polyline(latlngs, { color: "#E8743B", weight: 3, dashArray: "8 6" }).addTo(leafletMap);
     leafletMap.fitBounds(latlngs, { padding: [20, 20] });
   } else {
     leafletMap.setView([20, 0], 2);
   }
 
   stream.bubbles.forEach(b => {
-    L.circleMarker([b.lat, b.lng], { radius: 10, color: "#3B6D11", fillColor: "#9FE1CB", fillOpacity: 1 }).addTo(leafletMap);
+    L.circleMarker([b.lat, b.lng], { radius: 9, color: "#6FBE8F", weight: 2, fillColor: "#6FBE8F", fillOpacity: 0.85 }).addTo(leafletMap);
   });
 
   const bubbleList = document.getElementById("bubble-list");
-  // Show ALL uploaded photos, not just ones that matched a bubble - a photo
-  // uploaded before any location ping was shared would otherwise silently
-  // disappear here, which is confusing. Bubbles on the map are still
-  // best-effort location clustering; this list is the reliable source of truth.
-  bubbleList.innerHTML = media.length ? "" : "<p class='status'>No photos yet for this trip.</p>";
+  // Hold a point on the map above to browse photos there, Stories-style.
+  // This list stays as a reliable fallback for anything that couldn't be
+  // placed on the map (e.g. no location captured for that photo).
+  bubbleList.innerHTML = media.length ? "<h3>All photos</h3>" : "<p class='status'>No photos yet for this trip.</p>";
   media.forEach(m => renderPhotoCard(bubbleList, m));
 }
 
@@ -450,15 +657,242 @@ function postComment(mediaId) {
     .catch(err => alert("Error: " + err.message));
 }
 
+// ---------- per-user color, deterministic ----------
+function colorForUser(userId) {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 65%, 55%)`;
+}
+
+// ---------- live multi-member map ----------
+let liveMap = null, liveMapInterval = null, activeMap = null, activeBubbles = [], activeMediaById = {}, packMembersById = {};
+const DARK_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'; // keyless - CARTO now requires an API key
+const DARK_TILE_ATTR = '&copy; OpenStreetMap';
+
+function stopLivePolling() {
+  if (liveMapInterval) { clearInterval(liveMapInterval); liveMapInterval = null; }
+}
+
+async function initLiveMap(tripId, packId) {
+  if (liveMap) { liveMap.remove(); liveMap = null; }
+  const el = document.getElementById("live-map");
+  liveMap = L.map(el).setView([20, 0], 2);
+  activeMap = liveMap;
+  L.tileLayer(DARK_TILE_URL, { attribution: DARK_TILE_ATTR, subdomains: 'abc', maxZoom: 20 }).addTo(liveMap);
+
+  const members = await apiGet(`/packs/${packId}/members`);
+  packMembersById = {};
+  members.forEach(m => { packMembersById[m.user_id] = m.users?.display_name || "Member"; });
+  renderLiveLegend(members);
+
+  attachLongPress(el);
+  stopLivePolling();
+  refreshLiveMap(tripId);
+  liveMapInterval = setInterval(() => refreshLiveMap(tripId), 6000); // "near-live" via polling
+}
+
+function renderLiveLegend(members) {
+  const legend = document.getElementById("live-legend");
+  legend.innerHTML = "";
+  members.forEach(m => {
+    const chip = document.createElement("div");
+    chip.className = "legend-chip";
+    chip.innerHTML = `<span class="legend-dot" style="background:${colorForUser(m.user_id)}"></span>${m.users?.display_name || "Member"}`;
+    legend.appendChild(chip);
+  });
+}
+
+let liveMemberMarkers = {}, livePhotoMarkers = [];
+async function refreshLiveMap(tripId) {
+  if (!liveMap) return;
+  try {
+    const positions = await apiGet(`/trips/${tripId}/positions`);
+    const bounds = [];
+    positions.forEach(p => {
+      const color = colorForUser(p.user_id);
+      const icon = L.divIcon({ className: "", html: `<div class="member-dot-marker" style="width:22px;height:22px;background:${color}"></div>` });
+      if (liveMemberMarkers[p.user_id]) {
+        liveMemberMarkers[p.user_id].setLatLng([p.lat, p.lng]);
+      } else {
+        liveMemberMarkers[p.user_id] = L.marker([p.lat, p.lng], { icon }).addTo(liveMap)
+          .bindTooltip(packMembersById[p.user_id] || "Member");
+      }
+      bounds.push([p.lat, p.lng]);
+    });
+
+    const stream = await apiGet(`/trips/${tripId}/memory-stream`);
+    const media = await apiGet(`/trips/${tripId}/media`);
+    activeMediaById = {}; media.forEach(m => activeMediaById[m.id] = m);
+    activeBubbles = stream.bubbles;
+
+    livePhotoMarkers.forEach(mk => liveMap.removeLayer(mk));
+    livePhotoMarkers = [];
+    stream.bubbles.forEach(b => {
+      const mk = L.circleMarker([b.lat, b.lng], { radius: 8, className: "photo-dot-marker", color: "#F2EDE2", weight: 2, fillColor: "#E8743B", fillOpacity: 0.9 }).addTo(liveMap);
+      livePhotoMarkers.push(mk);
+      bounds.push([b.lat, b.lng]);
+    });
+
+    if (bounds.length) liveMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+  } catch (err) { /* keep trying on next poll */ }
+}
+
+// ---------- long-press to open radial photo popup ----------
+const longPressAttached = new WeakSet();
+function attachLongPress(el) {
+  if (longPressAttached.has(el)) return; // avoid stacking duplicate listeners on repeat visits
+  longPressAttached.add(el);
+
+  let timer = null, startPoint = null;
+  const THRESHOLD_PX = 10, HOLD_MS = 550;
+
+  function start(clientX, clientY) {
+    const rect = el.getBoundingClientRect();
+    startPoint = { x: clientX - rect.left, y: clientY - rect.top };
+    timer = setTimeout(() => triggerLongPress(startPoint), HOLD_MS);
+  }
+  function move(clientX, clientY) {
+    if (!startPoint || !timer) return;
+    const rect = el.getBoundingClientRect();
+    const dx = (clientX - rect.left) - startPoint.x, dy = (clientY - rect.top) - startPoint.y;
+    if (Math.sqrt(dx * dx + dy * dy) > THRESHOLD_PX) { clearTimeout(timer); timer = null; }
+  }
+  function end() { if (timer) { clearTimeout(timer); timer = null; } }
+
+  el.addEventListener("touchstart", e => start(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+  el.addEventListener("touchmove", e => move(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+  el.addEventListener("touchend", end);
+  el.addEventListener("mousedown", e => start(e.clientX, e.clientY));
+  el.addEventListener("mousemove", e => move(e.clientX, e.clientY));
+  el.addEventListener("mouseup", end);
+  el.addEventListener("mouseleave", end);
+}
+
+function triggerLongPress(point) {
+  if (!activeMap) return;
+  const PIXEL_RADIUS = 45;
+  const nearbyMediaIds = new Set();
+  activeBubbles.forEach(b => {
+    const bp = activeMap.latLngToContainerPoint([b.lat, b.lng]);
+    const dx = bp.x - point.x, dy = bp.y - point.y;
+    if (Math.sqrt(dx * dx + dy * dy) <= PIXEL_RADIUS) b.mediaIds.forEach(id => nearbyMediaIds.add(id));
+  });
+  if (!nearbyMediaIds.size) return; // nothing here - just a normal press on empty map
+
+  const byUser = {};
+  nearbyMediaIds.forEach(id => {
+    const m = activeMediaById[id];
+    if (!m) return;
+    (byUser[m.user_id] = byUser[m.user_id] || []).push(m);
+  });
+  openRadialPopup(byUser);
+}
+
+function openRadialPopup(byUser) {
+  const container = document.getElementById("radial-circles");
+  container.innerHTML = "";
+  const userIds = Object.keys(byUser);
+  const radius = 80, cx = 120, cy = 130;
+  userIds.forEach((userId, i) => {
+    const angle = (Math.PI / (userIds.length + 1)) * (i + 1) + Math.PI; // fan upward
+    const x = cx + radius * Math.cos(angle), y = cy + radius * Math.sin(angle);
+    const circle = document.createElement("div");
+    circle.className = "radial-circle";
+    circle.style.left = `${x - 32}px`; circle.style.top = `${y - 32}px`;
+    circle.style.background = colorForUser(userId);
+    circle.textContent = (packMembersById[userId] || "?").charAt(0).toUpperCase();
+    circle.onclick = () => { closeRadial(); openViewer(byUser[userId], packMembersById[userId] || "Member", 0); };
+    container.appendChild(circle);
+  });
+  document.getElementById("radial-popup").classList.remove("hidden");
+}
+function closeRadial() { document.getElementById("radial-popup").classList.add("hidden"); }
+
+// ---------- full-screen swipeable viewer with transparent floating comments ----------
+let viewerPhotos = [], viewerIndex = 0;
+function openViewer(photos, name, startIndex) {
+  viewerPhotos = photos; viewerIndex = startIndex;
+  document.getElementById("viewer-name").textContent = name;
+  renderViewerPhoto();
+  document.getElementById("viewer").classList.remove("hidden");
+
+  const wrap = document.getElementById("viewer-image-wrap");
+  let startX = null;
+  wrap.ontouchstart = e => { startX = e.touches[0].clientX; };
+  wrap.ontouchend = e => {
+    if (startX == null) return;
+    const dx = e.changedTouches[0].clientX - startX;
+    if (dx < -50 && viewerIndex < viewerPhotos.length - 1) { viewerIndex++; renderViewerPhoto(); }
+    else if (dx > 50 && viewerIndex > 0) { viewerIndex--; renderViewerPhoto(); }
+    startX = null;
+  };
+}
+function renderViewerPhoto() {
+  const m = viewerPhotos[viewerIndex];
+  document.getElementById("viewer-image").src = m.url;
+  document.getElementById("viewer-time").textContent = new Date(m.captured_at).toLocaleString() +
+    (viewerPhotos.length > 1 ? ` &middot; ${viewerIndex + 1} of ${viewerPhotos.length} - swipe for more` : "");
+
+  const reactionRow = document.getElementById("viewer-reactions");
+  reactionRow.innerHTML = "";
+  REACTION_EMOJIS.forEach(emoji => {
+    const btn = document.createElement("button");
+    btn.className = "emoji-btn"; btn.dataset.emoji = emoji; btn.textContent = emoji;
+    btn.onclick = () => apiPut(`/media/${m.id}/reactions`, { userId: state.userId, emoji })
+      .then(() => renderViewerPhoto())
+      .catch(err => alert("Error: " + err.message));
+    reactionRow.appendChild(btn);
+  });
+  apiGet(`/media/${m.id}/reactions`).then(summary => {
+    [...reactionRow.children].forEach(btn => {
+      const count = summary.counts[btn.dataset.emoji] || 0;
+      btn.textContent = count > 0 ? `${btn.dataset.emoji} ${count}` : btn.dataset.emoji;
+      btn.classList.toggle("has-count", count > 0);
+    });
+  });
+
+  const commentsEl = document.getElementById("viewer-comments");
+  apiGet(`/media/${m.id}/comments`).then(comments => {
+    commentsEl.innerHTML = comments.map(c => `<div class="comment"><strong>${c.users?.display_name || "Someone"}:</strong> ${c.text}</div>`).join("");
+  });
+}
+function postViewerComment() {
+  const input = document.getElementById("viewer-comment-input");
+  const text = input.value.trim();
+  if (!text) return;
+  const m = viewerPhotos[viewerIndex];
+  apiPost(`/media/${m.id}/comments`, { userId: state.userId, text }).then(() => { input.value = ""; renderViewerPhoto(); });
+}
+function closeViewer() { document.getElementById("viewer").classList.add("hidden"); }
+
+// ---------- join via shared link ----------
+function joinViaCode(code) {
+  apiGet(`/packs/join/${code}`).then(pack => {
+    return apiPost(`/packs/join/${code}`, { userId: state.userId }).then(() => {
+      pendingJoinCode = null;
+      history.replaceState({}, "", window.location.pathname); // clean the ?join= out of the URL
+      openPack(pack.id, pack.name);
+    });
+  }).catch(err => {
+    alert("That invite link didn't work: " + err.message);
+    pendingJoinCode = null;
+    history.replaceState({}, "", window.location.pathname);
+    showHome();
+  });
+}
+
 // ---------- boot ----------
+let pendingJoinCode = new URLSearchParams(window.location.search).get("join");
+
 (function boot() {
   const saved = localStorage.getItem("squadlore_user");
   if (saved) {
     const u = JSON.parse(saved);
     state.userId = u.id; state.displayName = u.displayName;
-    showHome();
+    if (pendingJoinCode) joinViaCode(pendingJoinCode); else showHome();
   } else {
-    showSetup();
+    showSetup(); // setupUser() will complete the join afterward if pendingJoinCode is set
   }
 })();
 </script>

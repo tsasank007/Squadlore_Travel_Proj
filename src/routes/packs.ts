@@ -87,4 +87,36 @@ router.get("/:packId/trips", async (req, res) => {
   }
 });
 
+router.get("/:packId/join-link", async (req, res) => {
+  // Generates the code the first time it's needed and reuses it after -
+  // one durable invite link per Pack/Toli, not per trip.
+  try {
+    const joinCode = await packService.getOrCreateJoinLink(req.params.packId);
+    const url = `${req.protocol}://${req.get("host")}/?join=${joinCode}`;
+    res.json({ joinCode, url });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/join/:joinCode", async (req, res) => {
+  // Lets the client show "You're about to join X" before actually joining.
+  try {
+    const pack = await packService.getPackByJoinCode(req.params.joinCode);
+    if (!pack) return res.status(404).json({ error: "Invite link not found" });
+    res.json(pack);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/join/:joinCode", async (req, res) => {
+  try {
+    const pack = await packService.joinByCode(req.params.joinCode, req.body.userId);
+    res.json(pack);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 export default router;
