@@ -499,7 +499,7 @@ function createPack() {
   // no separate "create the group, then separately start a trip" dance.
   apiPost("/packs", { name, creatorId: state.userId }).then(pack => {
     state.packId = pack.id; state.packName = pack.name;
-    return apiPost("/trips", { packId: pack.id, name: "Trip 1", discussionLocation: startPoint || undefined });
+    return apiPost("/trips", { packId: pack.id, name, discussionLocation: startPoint || undefined });
   }).then(trip => {
     document.getElementById("new-pack-name").value = "";
     document.getElementById("new-pack-start").value = "";
@@ -660,7 +660,7 @@ async function refreshMemoryStream(tripId) {
     // placed on the map (e.g. no location captured for that photo).
     bubbleList.innerHTML = media.length ? "<h3>All photos</h3>" : "<p class='status'>No photos yet for this trip.</p>";
     media.forEach(m => renderPhotoCard(bubbleList, m));
-  } catch (err) { /* keep trying on next poll, same as the live map */ }
+  } catch (err) { console.error("Memory Stream refresh failed:", err); /* keep trying on next poll */ }
 }
 
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "🎉"];
@@ -778,6 +778,12 @@ function drawPerMemberTrails(map, route, seenUserIdsSet, bounds) {
     const points = byUser[userId];
     const coords = points.map(p => [p.lng, p.lat]);
     coords.forEach(c => bounds.extend(c));
+    // A line needs at least 2 points to exist - with just one shared
+    // location, there's nothing to draw yet. Skipping this was the actual
+    // bug: attempting a 1-point LineString threw, which silently aborted
+    // the ENTIRE update (map zoom, other members, photos) for everyone,
+    // not just this one trail - because it's all wrapped in one try/catch.
+    if (coords.length < 2) return;
     const sourceId = `trail-${userId}`, layerId = `trail-line-${userId}`;
     const geojson = { type: "Feature", geometry: { type: "LineString", coordinates: coords } };
 
@@ -873,7 +879,7 @@ async function refreshLiveMap(tripId) {
     });
 
     if (!bounds.isEmpty()) liveMap.fitBounds(bounds, { padding: 40, maxZoom: 15, duration: 400 });
-  } catch (err) { /* keep trying on next poll */ }
+  } catch (err) { console.error("Live map refresh failed:", err); /* keep trying on next poll */ }
 }
 
 // ---------- long-press to open radial photo popup ----------
