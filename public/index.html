@@ -111,8 +111,12 @@
     .badge.active::before { animation: none; }
   }
 
-  #map { height: 240px; border-radius: 16px; margin-bottom: 12px; border: 1px solid var(--border); overflow: hidden; }
-  #live-map { height: 240px; border-radius: 16px; margin-bottom: 8px; border: 1px solid var(--border); overflow: hidden; }
+  /* Full-bleed: breaks out of main's side padding so the map spans the
+     whole screen width, not a small boxed card. */
+  #map, #live-map {
+    height: 55vh; margin: 0 -16px 12px; width: calc(100% + 32px);
+    border-radius: 0; border: none; overflow: hidden;
+  }
   /* Mapbox's own dark-v11 style is used directly (see DARK_STYLE_URL), so no
      CSS filter hack is needed here the way it was for plain OSM tiles. */
 
@@ -232,49 +236,55 @@
     <button onclick="setupUser()">Continue</button>
   </div>
 
-  <!-- HOME: list of packs -->
+  <!-- HOME: list of i'Hives, separate from creating a new one -->
   <div id="view-home" class="hidden">
     <div class="card">
-      <h2>Your i'Hives</h2>
+      <h2>i'Hives</h2>
       <div id="pack-list"></div>
-      <div class="row" style="margin-top:10px">
-        <input id="new-pack-name" placeholder="New i'Hive name" />
-      </div>
+    </div>
+    <div class="card">
+      <h3>Create a new i'Hive</h3>
+      <input id="new-pack-name" placeholder="New i'Hive name" />
       <input id="new-pack-start" placeholder="Starting point (optional)" />
       <button onclick="createPack()">+ New i'Hive</button>
     </div>
   </div>
 
-  <!-- PACK DETAIL: members + trips -->
+  <!-- PACK DETAIL: shown only when there's no active trip -->
   <div id="view-pack" class="hidden">
-    <button class="back" onclick="showHome()">&larr; All Packs</button>
+    <button class="back" onclick="showHome()">&larr; i'Hives</button>
     <div class="card">
       <h2 id="pack-title"></h2>
       <h3>Members</h3>
       <div id="member-list"></div>
-      <button onclick="shareInviteLink(false)">🔗 Share invite link</button>
+      <h3>Invite link</h3>
+      <div id="pack-invite-box"></div>
       <div class="row">
         <input id="invite-phone" placeholder="Or invite by phone number" />
       </div>
       <button class="secondary" onclick="invite()">Add member</button>
     </div>
     <div class="card">
-      <h2>Trips</h2>
+      <h3>Start a new trip</h3>
+      <input id="new-trip-name" placeholder="Trip name (e.g. Weekend in Yosemite)" />
+      <button onclick="startTrip()">Start trip</button>
       <div id="trip-list"></div>
-      <input id="new-trip-name" placeholder="New trip name (e.g. Weekend in Yosemite)" />
-      <button onclick="startTrip()">Start new trip</button>
     </div>
   </div>
 
   <!-- TRIP DETAIL: live sharing -->
   <div id="view-trip" class="hidden">
-    <button class="back" onclick="showPack()">&larr; Back to i'Hive</button>
+    <button class="back" onclick="showHome()">&larr; i'Hives</button>
     <div class="card">
       <h2 id="trip-title"></h2>
       <div id="trip-status" class="status"></div>
       <button onclick="sharePing()">📍 Share my location now</button>
       <input type="file" id="photo-input" accept="image/*" capture="environment" onchange="uploadPhoto()" style="margin-bottom:8px" />
       <div id="trip-actions"></div>
+    </div>
+    <div class="card">
+      <h3>Invite link</h3>
+      <div id="trip-invite-box"></div>
     </div>
     <div class="card">
       <h3>Live map &middot; hold a spot to see photos taken there</h3>
@@ -405,6 +415,15 @@ async function showHome() {
 }
 async function openPack(packId, packName) {
   state.packId = packId; state.packName = packName;
+  const trips = await apiGet(`/packs/${packId}/trips`);
+  const activeTrip = trips.find(t => t.status === "active");
+  if (activeTrip) {
+    // The whole point of this fix: clicking an i'Hive with a live trip goes
+    // straight into it. No separate "i'Hive detail" screen in between.
+    openTrip(activeTrip.id, activeTrip.name, activeTrip.discussion_location);
+    return;
+  }
+
   hideAll(); document.getElementById("view-pack").classList.remove("hidden");
   document.getElementById("pack-title").textContent = packName;
 
@@ -419,15 +438,16 @@ async function openPack(packId, packName) {
     memberList.appendChild(el);
   });
 
-  const trips = await apiGet(`/packs/${packId}/trips`);
+  renderInviteLinkBox(document.getElementById("pack-invite-box"), packId);
+
   const list = document.getElementById("trip-list");
-  list.innerHTML = trips.length ? "" : "<p class='status'>No trips yet.</p>";
+  // Only PAST trips show here - an active one would have redirected above.
+  list.innerHTML = trips.length ? "<h3>Past trips</h3>" : "<p class='status'>No trips yet - start one below.</p>";
   trips.forEach(t => {
     const el = document.createElement("div");
     el.className = "trip-item";
-    const badge = t.status === "active" ? "<span class='badge active'>live</span>" : "<span class='badge'>ended</span>";
-    el.innerHTML = `<span>${t.name}</span>${badge}`;
-    el.onclick = () => t.status === "active" ? openTrip(t.id, t.name) : openMemory(t.id, t.name);
+    el.innerHTML = `<span>${t.name}</span><span class='badge'>ended</span>`;
+    el.onclick = () => openMemory(t.id, t.name);
     list.appendChild(el);
   });
 }
@@ -441,6 +461,7 @@ function openTrip(tripId, tripName, startPoint) {
     : "Live - share your location and photos below.";
   document.getElementById("trip-actions").innerHTML =
     `<button class="secondary" onclick="endTrip()">End trip &amp; generate Memory Stream</button>`;
+  renderInviteLinkBox(document.getElementById("trip-invite-box"), state.packId);
   initLiveMap(tripId, state.packId);
 }
 
@@ -469,7 +490,6 @@ function createPack() {
     document.getElementById("new-pack-name").value = "";
     document.getElementById("new-pack-start").value = "";
     openTrip(trip.id, trip.name, trip.discussion_location);
-    shareInviteLink(true);
   }).catch(err => alert("Error: " + err.message));
 }
 
@@ -487,22 +507,28 @@ function startTrip() {
   if (!name) return alert("Name the trip first.");
   apiPost("/trips", { packId: state.packId, name }).then(trip => {
     document.getElementById("new-trip-name").value = "";
-    openTrip(trip.id, trip.name);
-    shareInviteLink(true); // offer to share right away so others can join this trip
+    openTrip(trip.id, trip.name, trip.discussion_location);
   }).catch(err => alert("Error: " + err.message));
 }
 
-function shareInviteLink(isNewTrip) {
-  apiGet(`/packs/${state.packId}/join-link`).then(({ url }) => {
-    const text = isNewTrip
-      ? `Join our i'Hive "${state.packName}" on Squadlore_Travel_Proj: ${url}`
-      : url;
-    if (navigator.share) {
-      navigator.share({ title: state.packName, text, url }).catch(() => {});
-    } else {
-      prompt("Copy this invite link to share:", url);
-    }
-  }).catch(err => alert("Error: " + err.message));
+function renderInviteLinkBox(container, packId) {
+  if (!container) return;
+  container.innerHTML = "<p class='status'>Loading link...</p>";
+  apiGet(`/packs/${packId}/join-link`).then(({ url }) => {
+    container.innerHTML = `
+      <div class="row">
+        <input readonly value="${url}" onclick="this.select()" />
+        <button class="secondary" style="flex:0 0 auto;width:auto;padding:10px 14px;" onclick="copyInviteLink('${url}')">Copy</button>
+      </div>`;
+  }).catch(() => { container.innerHTML = "<p class='status'>Couldn't load invite link.</p>"; });
+}
+
+function copyInviteLink(url) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => alert("Link copied!")).catch(() => prompt("Copy this link:", url));
+  } else {
+    prompt("Copy this link:", url);
+  }
 }
 
 function sharePing() {
@@ -579,7 +605,7 @@ async function openMemory(tripId, tripName) {
   if (memoryMap) { memoryMap.remove(); memoryMap = null; }
   memoryTrailUserIds = new Set();
   const mapEl = document.getElementById("map");
-  memoryMap = new mapboxgl.Map({ container: mapEl, style: DARK_STYLE_URL, center: [0, 20], zoom: 1 });
+  memoryMap = new mapboxgl.Map({ container: mapEl, style: MAP_STYLE_URL, center: [0, 20], zoom: 1, projection: "mercator" });
   memoryMap.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-left");
   activeMap = memoryMap;
   attachLongPress(mapEl);
@@ -708,7 +734,7 @@ function postComment(mediaId) {
 
 // ---------- live multi-member map ----------
 let liveMap = null, liveMapInterval = null, activeMap = null, activeBubbles = [], activeMediaById = {}, packMembersById = {};
-const DARK_STYLE_URL = "mapbox://styles/mapbox/dark-v11";
+const MAP_STYLE_URL = "mapbox://styles/mapbox/streets-v12"; // bright, matches the reference recording
 // mapboxgl.accessToken is set at boot from GET /config - see boot() below.
 // Never hardcode the token here: GitHub's push protection blocks committing
 // it, even though it's Mapbox's public-scoped token type.
@@ -771,7 +797,7 @@ async function initLiveMap(tripId, packId) {
   if (liveMap) { liveMap.remove(); liveMap = null; }
   liveTrailUserIds = new Set();
   const el = document.getElementById("live-map");
-  liveMap = new mapboxgl.Map({ container: el, style: DARK_STYLE_URL, center: [0, 20], zoom: 1 });
+  liveMap = new mapboxgl.Map({ container: el, style: MAP_STYLE_URL, center: [0, 20], zoom: 1, projection: "mercator" });
   liveMap.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-left");
   activeMap = liveMap;
 
