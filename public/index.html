@@ -157,6 +157,13 @@
   .comment strong { font-family: var(--display); font-weight: 500; }
 
   .back { background: none; color: var(--ember); font-weight: 600; padding: 0; width: auto; margin-bottom: 14px; font-size: 14px; }
+  #bubble-list-details summary {
+    cursor: pointer; font-family: var(--display); font-weight: 600; font-size: 15px;
+    padding: 10px 0; color: var(--bone); list-style: none;
+  }
+  #bubble-list-details summary::-webkit-details-marker { display: none; }
+  #bubble-list-details summary::before { content: "▸ "; color: var(--ember); }
+  #bubble-list-details[open] summary::before { content: "▾ "; }
   .status { font-size: 13px; color: var(--dust); margin-bottom: 8px; }
   .hidden { display: none !important; }
 
@@ -298,8 +305,12 @@
     <button class="back" onclick="showPack()">&larr; Back to i'Hive</button>
     <div class="card">
       <h2 id="memory-title">Memory Stream</h2>
+      <p class="status">Hold a colored dot on the map to see who took photos there.</p>
       <div id="map"></div>
-      <div id="bubble-list"></div>
+      <details id="bubble-list-details">
+        <summary>All photos</summary>
+        <div id="bubble-list"></div>
+      </details>
     </div>
   </div>
 
@@ -352,6 +363,10 @@ async function apiGet(path) {
 }
 async function apiPut(path, body) {
   const res = await fetch(API + path, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || res.statusText); }
+}
+async function apiPatch(path, body) {
+  const res = await fetch(API + path, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
   if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || res.statusText); }
 }
 
@@ -567,38 +582,36 @@ function uploadPhoto() {
 
   document.getElementById("trip-status").textContent = "Uploading photo...";
 
-  function doUpload(lat, lng) {
-    const formData = new FormData();
-    formData.append("photo", file);
-    formData.append("userId", state.userId);
-    formData.append("capturedAt", new Date().toISOString());
-    if (lat != null) formData.append("lat", lat);
-    if (lng != null) formData.append("lng", lng);
+  // Upload starts immediately - never waits on GPS. Location is requested
+  // in true parallel with a real 10-second window to succeed; if it
+  // resolves, it's attached to the photo afterward via a quick PATCH.
+  // This replaces the earlier version, which made the upload itself wait
+  // up to 4s for a GPS fix - too short indoors, so most photos silently
+  // ended up with no location and never appeared on the map at all.
+  const formData = new FormData();
+  formData.append("photo", file);
+  formData.append("userId", state.userId);
+  formData.append("capturedAt", new Date().toISOString());
 
-    fetch(`${API}/trips/${state.tripId}/media`, { method: "POST", body: formData })
-      .then(async res => {
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || "Upload failed");
-        document.getElementById("trip-status").textContent = "Photo uploaded!";
-        input.value = "";
-      })
-      .catch(err => alert("Error: " + err.message));
-  }
+  const uploadPromise = fetch(`${API}/trips/${state.tripId}/media`, { method: "POST", body: formData })
+    .then(async res => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      return data;
+    });
 
-  // The upload starts right away regardless of location - this is what
-  // fixed the multi-minute waits. Location is attached only if a fix
-  // arrives within 4 seconds (a cached position up to 60s old is fine);
-  // otherwise the photo still uploads, just without coordinates.
-  if (navigator.geolocation) {
-    let settled = false;
-    navigator.geolocation.getCurrentPosition(
-      pos => { if (!settled) { settled = true; doUpload(pos.coords.latitude, pos.coords.longitude); } },
-      () => { if (!settled) { settled = true; doUpload(null, null); } },
-      { enableHighAccuracy: false, timeout: 4000, maximumAge: 60000 }
-    );
-  } else {
-    doUpload(null, null);
-  }
+  uploadPromise.then(media => {
+    document.getElementById("trip-status").textContent = "Photo uploaded!";
+    input.value = "";
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => { apiPatch(`/media/${media.id}/location`, { lat: pos.coords.latitude, lng: pos.coords.longitude }).catch(() => {}); },
+        () => { /* no location this time - photo still stands on its own */ },
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+      );
+    }
+  }).catch(err => alert("Error: " + err.message));
 }
 
 function endTrip() {
@@ -655,10 +668,10 @@ async function refreshMemoryStream(tripId) {
     if (!bounds.isEmpty()) memoryMap.fitBounds(bounds, { padding: 30, maxZoom: 15, duration: 400 });
 
     const bubbleList = document.getElementById("bubble-list");
-    // Hold a point on the map above to browse photos there, Stories-style.
-    // This list stays as a reliable fallback for anything that couldn't be
-    // placed on the map (e.g. no location captured for that photo).
-    bubbleList.innerHTML = media.length ? "<h3>All photos</h3>" : "<p class='status'>No photos yet for this trip.</p>";
+    // The map above is the primary way to browse photos now (hold a dot to
+    // see who took photos there). This list is collapsed by default - a
+    // reliable fallback, not competing with the map for attention.
+    bubbleList.innerHTML = media.length ? "" : "<p class='status'>No photos yet for this trip.</p>";
     media.forEach(m => renderPhotoCard(bubbleList, m));
   } catch (err) { console.error("Memory Stream refresh failed:", err); /* keep trying on next poll */ }
 }

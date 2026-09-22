@@ -32,6 +32,18 @@ router.put("/:mediaId/reactions", async (req, res) => {
   }
 });
 
+router.patch("/:mediaId/location", async (req, res) => {
+  // Uploads no longer wait for GPS - this attaches the location afterward,
+  // once (if) it resolves, so a photo can still land on the Memory Stream
+  // map without making the person wait for the upload itself.
+  try {
+    await mediaService.updateLocation(req.params.mediaId, parseFloat(req.body.lat), parseFloat(req.body.lng));
+    res.status(204).send();
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.delete("/:mediaId/reactions/:userId", async (req, res) => {
   try {
     await mediaService.removeReaction(req.params.mediaId, req.params.userId);

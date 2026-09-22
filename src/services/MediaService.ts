@@ -74,6 +74,11 @@ export class MediaService {
     if (error) throw error;
   }
 
+  async updateLocation(mediaId: string, lat: number, lng: number) {
+    const { error } = await supabase.from("media").update({ lat, lng }).eq("id", mediaId);
+    if (error) throw error;
+  }
+
   async getTagsForMedia(mediaId: string) {
     const { data, error } = await supabase
       .from("media_tags")
