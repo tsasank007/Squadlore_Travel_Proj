@@ -355,6 +355,20 @@ async function apiPut(path, body) {
   if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || res.statusText); }
 }
 
+// If the database ever gets reset/cleared while a device still has a cached
+// login, that device's saved user id no longer exists - any create action
+// fails with a foreign-key error. Recover automatically instead of leaving
+// a dead-end error on screen.
+function handleStaleAccountOr(err) {
+  if (/foreign key|violates|does not exist/i.test(err.message)) {
+    alert("Your saved account looks out of date (likely after a data reset). Setting up your account again now.");
+    localStorage.removeItem("squadlore_user");
+    location.reload();
+  } else {
+    alert("Error: " + err.message);
+  }
+}
+
 // ---------- drawer (hamburger nav) ----------
 async function toggleDrawer() {
   const drawer = document.getElementById("drawer");
@@ -490,7 +504,7 @@ function createPack() {
     document.getElementById("new-pack-name").value = "";
     document.getElementById("new-pack-start").value = "";
     openTrip(trip.id, trip.name, trip.discussion_location);
-  }).catch(err => alert("Error: " + err.message));
+  }).catch(err => handleStaleAccountOr(err));
 }
 
 function invite() {
