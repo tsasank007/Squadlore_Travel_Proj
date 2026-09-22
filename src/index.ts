@@ -15,6 +15,14 @@ app.use(express.static(path.join(__dirname, "..", "public")));
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
+app.get("/config", (_req, res) => {
+  // Served at runtime rather than hardcoded in public/index.html, so the
+  // token never ends up committed to git (GitHub's push protection blocks
+  // this even for Mapbox's "public" token type - scraped tokens can still
+  // be used to run up usage against your account).
+  res.json({ mapboxToken: process.env.MAPBOX_TOKEN || "" });
+});
+
 app.use("/users", usersRouter);
 app.use("/packs", packsRouter);
 app.use("/trips", tripsRouter);

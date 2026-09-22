@@ -708,9 +708,10 @@ function postComment(mediaId) {
 
 // ---------- live multi-member map ----------
 let liveMap = null, liveMapInterval = null, activeMap = null, activeBubbles = [], activeMediaById = {}, packMembersById = {};
-const MAPBOX_TOKEN = "pk.eyJ1IjoidHNhc2FuazAwNy1tIiwiYSI6ImNtdWN6aTJtZjBicjkyeXB5cmo1N3JzZGYifQ.NPGbuRj3WWwVEp2tgQk9VQ";
 const DARK_STYLE_URL = "mapbox://styles/mapbox/dark-v11";
-mapboxgl.accessToken = MAPBOX_TOKEN;
+// mapboxgl.accessToken is set at boot from GET /config - see boot() below.
+// Never hardcode the token here: GitHub's push protection blocks committing
+// it, even though it's Mapbox's public-scoped token type.
 
 // Shared helpers used by both the live map and the Memory Stream map -----
 
@@ -983,14 +984,20 @@ function joinViaCode(code) {
 let pendingJoinCode = new URLSearchParams(window.location.search).get("join");
 
 (function boot() {
-  const saved = localStorage.getItem("squadlore_user");
-  if (saved) {
-    const u = JSON.parse(saved);
-    state.userId = u.id; state.displayName = u.displayName;
-    if (pendingJoinCode) joinViaCode(pendingJoinCode); else showHome();
-  } else {
-    showSetup(); // setupUser() will complete the join afterward if pendingJoinCode is set
-  }
+  apiGet("/config").then(cfg => {
+    mapboxgl.accessToken = cfg.mapboxToken;
+  }).catch(() => {
+    console.error("Couldn't load map configuration - maps won't work until this succeeds.");
+  }).finally(() => {
+    const saved = localStorage.getItem("squadlore_user");
+    if (saved) {
+      const u = JSON.parse(saved);
+      state.userId = u.id; state.displayName = u.displayName;
+      if (pendingJoinCode) joinViaCode(pendingJoinCode); else showHome();
+    } else {
+      showSetup(); // setupUser() will complete the join afterward if pendingJoinCode is set
+    }
+  });
 })();
 </script>
 </body>
