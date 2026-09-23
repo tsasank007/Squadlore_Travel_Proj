@@ -172,12 +172,15 @@
   .legend-chip { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dust); }
   .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
 
-  /* Radial photo-cluster popup */
-  #radial-popup {
-    position: fixed; inset: 0; z-index: 40; background: rgba(10, 15, 20, 0.55);
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+  /* Radial photo-cluster popup - the dim backdrop covers the screen, but
+     the circle cluster itself is anchored at the actual press point via
+     JS-set left/top (see openRadialPopup), not centered on screen. */
+  #radial-popup { position: fixed; inset: 0; z-index: 40; background: rgba(10, 15, 20, 0.55); }
+  #radial-popup #radial-close {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    width: auto; padding: 10px 24px;
   }
-  #radial-circles { position: relative; width: 240px; height: 180px; }
+  #radial-circles { position: fixed; width: 0; height: 0; }
   .radial-circle {
     position: absolute; width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--bone);
     display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 600;
@@ -934,13 +937,14 @@ function attachLongPress(el) {
   if (longPressAttached.has(el)) return; // avoid stacking duplicate listeners on repeat visits
   longPressAttached.add(el);
 
-  let timer = null, startPoint = null;
+  let timer = null, startPoint = null, startPagePoint = null;
   const THRESHOLD_PX = 10, HOLD_MS = 550;
 
   function start(clientX, clientY) {
     const rect = el.getBoundingClientRect();
     startPoint = { x: clientX - rect.left, y: clientY - rect.top };
-    timer = setTimeout(() => triggerLongPress(startPoint), HOLD_MS);
+    startPagePoint = { x: clientX, y: clientY }; // for positioning the popup where you actually pressed
+    timer = setTimeout(() => triggerLongPress(startPoint, startPagePoint), HOLD_MS);
   }
   function move(clientX, clientY) {
     if (!startPoint || !timer) return;
@@ -959,7 +963,7 @@ function attachLongPress(el) {
   el.addEventListener("mouseleave", end);
 }
 
-function triggerLongPress(point) {
+function triggerLongPress(point, pagePoint) {
   if (!activeMap) return;
   const PIXEL_RADIUS = 45;
   const nearbyMediaIds = new Set();
@@ -976,17 +980,26 @@ function triggerLongPress(point) {
     if (!m) return;
     (byUser[m.user_id] = byUser[m.user_id] || []).push(m);
   });
-  openRadialPopup(byUser);
+  openRadialPopup(byUser, pagePoint);
 }
 
-function openRadialPopup(byUser) {
+function openRadialPopup(byUser, pagePoint) {
   const container = document.getElementById("radial-circles");
   container.innerHTML = "";
   const userIds = Object.keys(byUser);
-  const radius = 80, cx = 120, cy = 130;
+  const radius = 70;
+  // Anchor at the actual spot you pressed, clamped so the fan of circles
+  // never gets cut off by the screen edges (this is the fix for "the
+  // bubble moving out of the map" - it used to always center on screen).
+  const margin = 110;
+  const anchorX = Math.min(Math.max(pagePoint.x, margin), window.innerWidth - margin);
+  const anchorY = Math.min(Math.max(pagePoint.y, margin + 30), window.innerHeight - margin);
+  container.style.left = `${anchorX}px`;
+  container.style.top = `${anchorY}px`;
+
   userIds.forEach((userId, i) => {
-    const angle = (Math.PI / (userIds.length + 1)) * (i + 1) + Math.PI; // fan upward
-    const x = cx + radius * Math.cos(angle), y = cy + radius * Math.sin(angle);
+    const angle = (Math.PI / (userIds.length + 1)) * (i + 1) + Math.PI; // fan upward from the press point
+    const x = radius * Math.cos(angle), y = radius * Math.sin(angle);
     const circle = document.createElement("div");
     circle.className = "radial-circle";
     circle.style.left = `${x - 32}px`; circle.style.top = `${y - 32}px`;
