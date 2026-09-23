@@ -285,6 +285,7 @@
     <div class="card">
       <h2 id="trip-title"></h2>
       <div id="trip-status" class="status"></div>
+      <div id="location-permission-status" class="status"></div>
       <button onclick="sharePing()">📍 Share my location now</button>
       <input type="file" id="photo-input" accept="image/*" capture="environment" onchange="uploadPhoto()" style="margin-bottom:8px" />
       <div id="trip-actions"></div>
@@ -305,7 +306,7 @@
     <button class="back" onclick="showPack()">&larr; Back to i'Hive</button>
     <div class="card">
       <h2 id="memory-title">Memory Stream</h2>
-      <p class="status">Hold a colored dot on the map to see who took photos there.</p>
+      <p id="memory-hint" class="status">Hold a colored dot on the map to see who took photos there.</p>
       <div id="map"></div>
       <details id="bubble-list-details">
         <summary>All photos</summary>
@@ -492,6 +493,26 @@ function openTrip(tripId, tripName, startPoint) {
     `<button class="secondary" onclick="endTrip()">End trip &amp; generate Memory Stream</button>`;
   renderInviteLinkBox(document.getElementById("trip-invite-box"), state.packId);
   initLiveMap(tripId, state.packId);
+  checkLocationPermission();
+}
+
+// This is the diagnostic that's been missing this whole time: showing
+// REAL permission status instead of failing silently when it's blocked.
+function checkLocationPermission() {
+  const el = document.getElementById("location-permission-status");
+  if (!navigator.permissions || !navigator.permissions.query) {
+    el.textContent = "";
+    return;
+  }
+  navigator.permissions.query({ name: "geolocation" }).then(result => {
+    const render = () => {
+      if (result.state === "granted") el.innerHTML = "📍 Location access: <strong style='color:var(--trailmark)'>granted</strong>";
+      else if (result.state === "denied") el.innerHTML = "📍 Location access: <strong style='color:var(--ember)'>BLOCKED</strong> - photos and sharing won't have location until this site is allowed to use your location in your browser's site settings.";
+      else el.innerHTML = "📍 Location access: not yet asked - you'll be prompted the first time you share.";
+    };
+    render();
+    result.onchange = render;
+  }).catch(() => { el.textContent = ""; });
 }
 
 // ---------- actions ----------
@@ -666,6 +687,18 @@ async function refreshMemoryStream(tripId) {
     });
 
     if (!bounds.isEmpty()) memoryMap.fitBounds(bounds, { padding: 30, maxZoom: 15, duration: 400 });
+
+    // This is the diagnostic that's been missing - tell you exactly what
+    // was found instead of just showing an empty map with no explanation.
+    const hint = document.getElementById("memory-hint");
+    const locatedCount = media.filter(m => m.lat != null && m.lng != null).length;
+    if (media.length === 0) {
+      hint.textContent = "No photos yet for this trip.";
+    } else if (stream.bubbles.length === 0) {
+      hint.innerHTML = `<strong style="color:var(--ember)">${media.length} photo${media.length > 1 ? "s" : ""} found, but none have location data.</strong> This usually means location access was blocked when they were taken - check the permission status on the trip screen.`;
+    } else {
+      hint.textContent = `${stream.bubbles.length} photo spot${stream.bubbles.length > 1 ? "s" : ""} found (${locatedCount} of ${media.length} photos have location) - hold a colored dot on the map to see who took photos there.`;
+    }
 
     const bubbleList = document.getElementById("bubble-list");
     // The map above is the primary way to browse photos now (hold a dot to
