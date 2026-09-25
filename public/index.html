@@ -131,9 +131,15 @@
     margin-top: 3px; font-family: var(--display); font-size: 11px; font-weight: 600; color: var(--bone);
     background: rgba(22, 32, 44, 0.85); padding: 2px 8px; border-radius: 999px; white-space: nowrap;
   }
-  .photo-pin-dot { background: var(--ember); position: relative; }
-  .photo-pin-dot::after {
-    content: "📷"; font-size: 11px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  .photo-pin-dot {
+    width: 46px; height: 46px; border-radius: 50%; border: 3px solid var(--bone);
+    background-size: cover; background-position: center; background-color: var(--slate-2);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.45); position: relative; cursor: pointer;
+  }
+  .photo-count-badge {
+    position: absolute; bottom: -4px; right: -4px; background: var(--ember); color: var(--dusk);
+    font-size: 10px; font-weight: 700; width: 19px; height: 19px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; border: 2px solid var(--bone);
   }
 
   .photo-card { background: var(--dusk); border: 1px solid var(--border); border-radius: 20px; padding: 12px; margin-bottom: 16px; }
@@ -430,6 +436,7 @@ async function toggleDrawer() {
 function hideAll() {
   stopLivePolling();
   stopMemoryPolling();
+  stopAutoPing();
   ["setup", "home", "pack", "trip", "memory"].forEach(v => document.getElementById("view-" + v).classList.add("hidden"));
 }
 function showSetup() { hideAll(); document.getElementById("view-setup").classList.remove("hidden"); }
@@ -497,6 +504,8 @@ function openTrip(tripId, tripName, startPoint) {
   renderInviteLinkBox(document.getElementById("trip-invite-box"), state.packId);
   initLiveMap(tripId, state.packId);
   checkLocationPermission();
+  autoSharePing(); // capture one right away
+  autoPingInterval = setInterval(autoSharePing, 25000);
 }
 
 // This is the diagnostic that's been missing this whole time: showing
@@ -597,6 +606,24 @@ function sharePing() {
       document.getElementById("trip-status").textContent = "Location shared just now.";
     }).catch(err => alert("Error: " + err.message));
   }, err => alert("Couldn't get location: " + err.message));
+}
+
+// Automatic, silent, periodic location capture while a trip is active -
+// this is what actually fixes the "straight line between two taps" problem.
+// The manual button above still exists for an on-demand update; this fills
+// in the gaps automatically so the route has enough points to look real.
+let autoPingInterval = null;
+function stopAutoPing() {
+  if (autoPingInterval) { clearInterval(autoPingInterval); autoPingInterval = null; }
+}
+function autoSharePing() {
+  if (!navigator.geolocation || !state.tripId) return;
+  navigator.geolocation.getCurrentPosition(pos => {
+    apiPost(`/trips/${state.tripId}/pings`, {
+      userId: state.userId, lat: pos.coords.latitude, lng: pos.coords.longitude, capturedAt: new Date().toISOString(),
+    }).catch(() => {});
+  }, () => { /* silent - the manual button and permission status cover this */ },
+     { enableHighAccuracy: false, timeout: 15000, maximumAge: 20000 });
 }
 
 function uploadPhoto() {
@@ -812,7 +839,16 @@ function makePinElement(className, label) {
 }
 
 function addPhotoMarker(map, bubble) {
-  const el = makePinElement("photo-pin-dot", `${bubble.mediaIds.length} photo${bubble.mediaIds.length > 1 ? "s" : ""}`);
+  const firstMedia = activeMediaById[bubble.mediaIds[0]];
+  const el = document.createElement("div");
+  el.className = "photo-pin-dot";
+  if (firstMedia) el.style.backgroundImage = `url('${firstMedia.url}')`;
+  if (bubble.mediaIds.length > 1) {
+    const badge = document.createElement("div");
+    badge.className = "photo-count-badge";
+    badge.textContent = bubble.mediaIds.length;
+    el.appendChild(badge);
+  }
   return new mapboxgl.Marker({ element: el }).setLngLat([bubble.lng, bubble.lat]).addTo(map);
 }
 
