@@ -307,6 +307,10 @@
       <div id="trip-actions"></div>
     </div>
     <div class="card">
+      <h3>Hive members</h3>
+      <div id="trip-member-list"></div>
+    </div>
+    <div class="card">
       <h3>Invite link</h3>
       <div id="trip-invite-box"></div>
     </div>
@@ -328,6 +332,10 @@
         <summary>All photos</summary>
         <div id="bubble-list"></div>
       </details>
+    </div>
+    <div class="card">
+      <h3>Hive members</h3>
+      <div id="memory-member-list"></div>
     </div>
   </div>
 
@@ -456,13 +464,37 @@ async function showHome() {
   hideAll(); document.getElementById("view-home").classList.remove("hidden");
   const packs = await apiGet(`/packs?userId=${state.userId}`);
   const list = document.getElementById("pack-list");
-  list.innerHTML = packs.length ? "" : "<p class='status'>No i'Hives yet - create one below.</p>";
-  packs.forEach(p => {
+  list.innerHTML = "";
+  let anyTrips = false;
+  for (const p of packs) {
+    const trips = await apiGet(`/packs/${p.id}/trips`);
+    trips.forEach(t => {
+      anyTrips = true;
+      const el = document.createElement("div");
+      el.className = "pack-item";
+      const badge = t.status === "active" ? "<span class='badge active'>live</span>" : "<span class='badge'>ended</span>";
+      el.innerHTML = `<span>${t.name}</span>${badge}`;
+      el.onclick = () => {
+        state.packId = p.id; state.packName = p.name;
+        if (t.status === "active") openTrip(t.id, t.name, t.discussion_location);
+        else openMemory(t.id, t.name);
+      };
+      list.appendChild(el);
+    });
+  }
+  if (!anyTrips) list.innerHTML = "<p class='status'>No i'Hives yet - create one below.</p>";
+}
+
+async function renderMembersInline(container, packId) {
+  if (!container) return;
+  const members = await apiGet(`/packs/${packId}/members`);
+  container.innerHTML = "";
+  members.forEach(m => {
     const el = document.createElement("div");
-    el.className = "pack-item";
-    el.innerHTML = `<span>${p.name}</span><span>&rarr;</span>`;
-    el.onclick = () => openPack(p.id, p.name);
-    list.appendChild(el);
+    el.className = "trip-item";
+    const badgeClass = m.status === "active" ? "badge active" : "badge";
+    el.innerHTML = `<span>${m.users?.display_name || "Pending member"}</span><span class="${badgeClass}">${m.status}</span>`;
+    container.appendChild(el);
   });
 }
 async function openPack(packId, packName) {
@@ -478,17 +510,7 @@ async function openPack(packId, packName) {
 
   hideAll(); document.getElementById("view-pack").classList.remove("hidden");
   document.getElementById("pack-title").textContent = packName;
-
-  const members = await apiGet(`/packs/${packId}/members`);
-  const memberList = document.getElementById("member-list");
-  memberList.innerHTML = "";
-  members.forEach(m => {
-    const el = document.createElement("div");
-    el.className = "trip-item";
-    const badgeClass = m.status === "active" ? "badge active" : "badge";
-    el.innerHTML = `<span>${m.users?.display_name || "Pending member"}</span><span class="${badgeClass}">${m.status}</span>`;
-    memberList.appendChild(el);
-  });
+  renderMembersInline(document.getElementById("member-list"), packId);
 
   renderInviteLinkBox(document.getElementById("pack-invite-box"), packId);
 
@@ -514,6 +536,7 @@ function openTrip(tripId, tripName, startPoint) {
   document.getElementById("trip-actions").innerHTML =
     `<button class="secondary" onclick="endTrip()">End trip &amp; generate Memory Stream</button>`;
   renderInviteLinkBox(document.getElementById("trip-invite-box"), state.packId);
+  renderMembersInline(document.getElementById("trip-member-list"), state.packId);
   initLiveMap(tripId, state.packId);
   checkLocationPermission();
   autoSharePing(); // capture one right away
@@ -691,6 +714,7 @@ async function openMemory(tripId, tripName) {
   state.tripId = tripId; state.tripName = tripName;
   hideAll(); document.getElementById("view-memory").classList.remove("hidden");
   document.getElementById("memory-title").textContent = "Memory Stream: " + tripName;
+  renderMembersInline(document.getElementById("memory-member-list"), state.packId);
 
   if (memoryMap) { memoryMap.remove(); memoryMap = null; }
   memoryTrailUserIds = new Set();
