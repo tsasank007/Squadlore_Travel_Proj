@@ -69,4 +69,49 @@ export class LocationService {
     if (error) throw error;
     return data;
   }
+
+  async getMapMatchedRoutePerUser(tripId: string): Promise<Record<string, [number, number][]>> {
+    // This is what actually fixes the zigzag/straight-line problem: raw GPS
+    // points connected in order don't know about roads, so an out-and-back
+    // drive draws two crossing lines, and sparse points cut straight across
+    // lakes/blocks. Mapbox's Map Matching API takes our raw point sequence
+    // and snaps it onto the real road network per member.
+    const raw = await this.getRouteForTrip(tripId);
+    const byUser: Record<string, any[]> = {};
+    (raw ?? []).forEach((p: any) => { (byUser[p.user_id] = byUser[p.user_id] || []).push(p); });
+
+    const result: Record<string, [number, number][]> = {};
+
+    for (const userId of Object.keys(byUser)) {
+      const points = byUser[userId];
+      const rawCoords: [number, number][] = points.map((p) => [p.lng, p.lat]);
+
+      if (points.length < 2) {
+        result[userId] = rawCoords; // nothing to match with just one point
+        continue;
+      }
+
+      // Map Matching accepts at most 100 coordinates per request.
+      const trimmed = points.slice(-100);
+      const coordStr = trimmed.map((p) => `${p.lng},${p.lat}`).join(";");
+      const tsStr = trimmed.map((p) => Math.floor(new Date(p.captured_at).getTime() / 1000)).join(";");
+      const url = `https://api.mapbox.com/matching/v5/mapbox/driving/${coordStr}?geometries=geojson&timestamps=${tsStr}&access_token=${process.env.MAPBOX_TOKEN}`;
+
+      try {
+        const res = await fetch(url);
+        const data: any = await res.json();
+        if (data.code === "Ok" && data.matchings?.[0]?.geometry?.coordinates) {
+          result[userId] = data.matchings[0].geometry.coordinates;
+        } else {
+          // No confident match (too sparse, off-road, etc.) - fall back
+          // to the raw points rather than showing nothing at all.
+          result[userId] = trimmed.map((p) => [p.lng, p.lat]);
+        }
+      } catch {
+        result[userId] = trimmed.map((p) => [p.lng, p.lat]);
+      }
+    }
+
+    return result;
+  }
 }

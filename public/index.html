@@ -189,11 +189,15 @@
   #radial-circles { position: fixed; width: 0; height: 0; }
   .radial-circle {
     position: absolute; width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--bone);
-    display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 600;
-    color: var(--dusk); cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.4);
-    transition: transform 0.15s ease;
+    background-size: cover; background-position: center; background-color: var(--slate-2);
+    cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.5); transition: transform 0.15s ease;
   }
   .radial-circle:active { transform: scale(0.92); }
+  .radial-circle-badge {
+    position: absolute; bottom: -3px; right: -3px; width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 700;
+    font-size: 12px; color: var(--dusk); border: 2px solid var(--bone);
+  }
 
   /* Full-screen swipeable photo viewer */
   #viewer {
@@ -201,7 +205,10 @@
     display: flex; align-items: center; justify-content: center;
   }
   #viewer-image-wrap { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; touch-action: pan-y; }
-  #viewer-image { max-width: 100%; max-height: 100%; object-fit: contain; }
+  #viewer-image {
+    max-width: 100%; max-height: 100%; object-fit: contain;
+    -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+  }
   #viewer-close {
     position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border-radius: 50%;
     background: rgba(22, 32, 44, 0.6); color: var(--bone); font-size: 22px; line-height: 1; z-index: 51;
@@ -327,7 +334,7 @@
 </main>
 
 <!-- Radial photo-cluster popup, shown on long-press over a photo bubble -->
-<div id="radial-popup" class="hidden">
+<div id="radial-popup" class="hidden" onclick="closeRadial()">
   <div id="radial-circles"></div>
   <button class="secondary" id="radial-close" onclick="closeRadial()" style="width:auto;padding:8px 16px;">Close</button>
 </div>
@@ -344,6 +351,11 @@
   </div>
   <div id="viewer-overlay-bottom" class="viewer-overlay">
     <div id="viewer-reactions" class="reaction-row"></div>
+    <div id="viewer-tags" class="tag-row"></div>
+    <div class="row">
+      <select id="viewer-tag-select"></select>
+      <button class="secondary" style="flex:0 0 auto;width:auto;padding:10px 14px;" onclick="tagInViewer()">Tag</button>
+    </div>
     <div id="viewer-comments" class="comment-list"></div>
     <div class="row">
       <input id="viewer-comment-input" placeholder="Add a comment..." />
@@ -700,14 +712,13 @@ async function openMemory(tripId, tripName) {
 async function refreshMemoryStream(tripId) {
   if (!memoryMap || !memoryMap.isStyleLoaded()) return;
   try {
-    const route = await apiGet(`/trips/${tripId}/route`);
     const media = await apiGet(`/trips/${tripId}/media`);
     const stream = await apiGet(`/trips/${tripId}/memory-stream`);
     activeMediaById = {}; media.forEach(m => activeMediaById[m.id] = m);
     activeBubbles = stream.bubbles;
 
     const bounds = new mapboxgl.LngLatBounds();
-    drawPerMemberTrails(memoryMap, route, memoryTrailUserIds, bounds);
+    await drawPerMemberTrails(memoryMap, tripId, memoryTrailUserIds, bounds);
 
     memoryPhotoMarkers.forEach(mk => mk.remove());
     memoryPhotoMarkers = [];
@@ -855,13 +866,15 @@ function addPhotoMarker(map, bubble) {
 // Draws one colored trail line per member, matching the reference look
 // (each "vehicle" leaves its own colored trace). `route` is the raw ping
 // list (every point, every user) from GET /trips/:id/route.
-function drawPerMemberTrails(map, route, seenUserIdsSet, bounds) {
-  const byUser = {};
-  route.forEach(p => { (byUser[p.user_id] = byUser[p.user_id] || []).push(p); });
+async function drawPerMemberTrails(map, tripId, seenUserIdsSet, bounds) {
+  // Road-snapped per-member coordinates from the server (Mapbox Map
+  // Matching) - this is what fixes the zigzag/straight-line problem.
+  // The server already falls back to raw points if matching fails, so
+  // there's nothing extra to handle here.
+  const matched = await apiGet(`/trips/${tripId}/matched-route`);
 
-  Object.keys(byUser).forEach(userId => {
-    const points = byUser[userId];
-    const coords = points.map(p => [p.lng, p.lat]);
+  Object.keys(matched).forEach(userId => {
+    const coords = matched[userId];
     coords.forEach(c => bounds.extend(c));
     // A line needs at least 2 points to exist - with just one shared
     // location, there's nothing to draw yet. Skipping this was the actual
@@ -948,8 +961,7 @@ async function refreshLiveMap(tripId) {
       bounds.extend([p.lng, p.lat]);
     });
 
-    const route = await apiGet(`/trips/${tripId}/route`);
-    drawPerMemberTrails(liveMap, route, liveTrailUserIds, bounds);
+    await drawPerMemberTrails(liveMap, tripId, liveTrailUserIds, bounds);
 
     const stream = await apiGet(`/trips/${tripId}/memory-stream`);
     const media = await apiGet(`/trips/${tripId}/media`);
@@ -974,7 +986,7 @@ function attachLongPress(el) {
   longPressAttached.add(el);
 
   let timer = null, startPoint = null, startPagePoint = null;
-  const THRESHOLD_PX = 10, HOLD_MS = 550;
+  const THRESHOLD_PX = 18, HOLD_MS = 550;
 
   function start(clientX, clientY) {
     const rect = el.getBoundingClientRect();
@@ -1039,9 +1051,14 @@ function openRadialPopup(byUser, pagePoint) {
     const circle = document.createElement("div");
     circle.className = "radial-circle";
     circle.style.left = `${x - 32}px`; circle.style.top = `${y - 32}px`;
-    circle.style.background = colorForUser(userId);
-    circle.textContent = (packMembersById[userId] || "?").charAt(0).toUpperCase();
-    circle.onclick = () => { closeRadial(); openViewer(byUser[userId], packMembersById[userId] || "Member", 0); };
+    const firstPhoto = byUser[userId][0];
+    if (firstPhoto) circle.style.backgroundImage = `url('${firstPhoto.url}')`;
+    const badge = document.createElement("div");
+    badge.className = "radial-circle-badge";
+    badge.style.background = colorForUser(userId);
+    badge.textContent = (packMembersById[userId] || "?").charAt(0).toUpperCase();
+    circle.appendChild(badge);
+    circle.onclick = (e) => { e.stopPropagation(); closeRadial(); openViewer(byUser[userId], packMembersById[userId] || "Member", 0); };
     container.appendChild(circle);
   });
   document.getElementById("radial-popup").classList.remove("hidden");
@@ -1095,6 +1112,23 @@ function renderViewerPhoto() {
   apiGet(`/media/${m.id}/comments`).then(comments => {
     commentsEl.innerHTML = comments.map(c => `<div class="comment"><strong>${c.users?.display_name || "Someone"}:</strong> ${c.text}</div>`).join("");
   });
+
+  // Tags - the backend supported this from early on, but there was never
+  // a UI to actually add one until now.
+  const tagSelect = document.getElementById("viewer-tag-select");
+  tagSelect.innerHTML = "<option value=''>Tag a member...</option>" +
+    Object.entries(packMembersById).map(([id, name]) => `<option value="${id}">${name}</option>`).join("");
+  apiGet(`/media/${m.id}/tags`).then(tags => {
+    const names = tags.map(t => t.users?.display_name).filter(Boolean);
+    document.getElementById("viewer-tags").textContent = names.length ? `Tagged: ${names.join(", ")}` : "";
+  });
+}
+function tagInViewer() {
+  const select = document.getElementById("viewer-tag-select");
+  const taggedUserId = select.value;
+  if (!taggedUserId) return;
+  const m = viewerPhotos[viewerIndex];
+  apiPost(`/media/${m.id}/tags`, { taggedUserId }).then(() => { select.value = ""; renderViewerPhoto(); }).catch(err => alert("Error: " + err.message));
 }
 function postViewerComment() {
   const input = document.getElementById("viewer-comment-input");
