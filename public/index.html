@@ -131,11 +131,15 @@
     margin-top: 3px; font-family: var(--display); font-size: 11px; font-weight: 600; color: var(--bone);
     background: rgba(22, 32, 44, 0.85); padding: 2px 8px; border-radius: 999px; white-space: nowrap;
   }
-  .photo-pin-dot {
-    width: 46px; height: 46px; border-radius: 50%; border: 3px solid var(--bone);
+  .photo-pin { width: 46px; height: 46px; position: relative; cursor: pointer; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  .photo-pin-img {
+    position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--bone);
     background-size: cover; background-position: center; background-color: var(--slate-2);
-    box-shadow: 0 3px 10px rgba(0,0,0,0.45); position: relative; cursor: pointer;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.45); pointer-events: none;
   }
+  .photo-pin-users { position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); display: flex; gap: 2px; pointer-events: none; }
+  .photo-pin-users span { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--bone); }
+  #map, #live-map, .mapboxgl-marker { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   .photo-count-badge {
     position: absolute; bottom: -4px; right: -4px; background: var(--ember); color: var(--dusk);
     font-size: 10px; font-weight: 700; width: 19px; height: 19px; border-radius: 50%;
@@ -178,26 +182,61 @@
   .legend-chip { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dust); }
   .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
 
-  /* Radial photo-cluster popup - the dim backdrop covers the screen, but
-     the circle cluster itself is anchored at the actual press point via
-     JS-set left/top (see openRadialPopup), not centered on screen. */
-  #radial-popup { position: fixed; inset: 0; z-index: 40; background: rgba(10, 15, 20, 0.55); }
-  #radial-popup #radial-close {
-    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-    width: auto; padding: 10px 24px;
+  /* The photo browser ("orbit") */
+  #orbit { position: fixed; inset: 0; z-index: 45; }
+  #orbit, #orbit * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  #orbit-backdrop { position: absolute; inset: 0; background: rgba(8, 12, 18, 0.8); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+  #orbit-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #orbit-wheel { position: absolute; touch-action: none; }
+  #orbit-track {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    border-radius: 50%; border: 2px dashed rgba(242, 237, 226, 0.2); pointer-events: none;
   }
-  #radial-circles { position: fixed; width: 0; height: 0; }
-  .radial-circle {
-    position: absolute; width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--bone);
-    background-size: cover; background-position: center; background-color: var(--slate-2);
-    cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.5); transition: transform 0.15s ease;
+  .orbit-img { position: absolute; inset: 0; background-size: cover; background-position: center; pointer-events: none; }
+  .orbit-item {
+    position: absolute; left: 50%; top: 50%; box-sizing: border-box; border: 3px solid var(--bone);
+    border-radius: 50%; overflow: hidden; background: var(--slate-2); cursor: pointer;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5); will-change: transform;
   }
-  .radial-circle:active { transform: scale(0.92); }
-  .radial-circle-badge {
-    position: absolute; bottom: -3px; right: -3px; width: 22px; height: 22px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 700;
-    font-size: 12px; color: var(--dusk); border: 2px solid var(--bone);
+  #orbit-center {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 200;
+    box-sizing: border-box; border: 4px solid var(--bone); border-radius: 50%; overflow: hidden;
+    background: var(--slate-2); cursor: pointer; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
   }
+  #orbit-caption {
+    position: absolute; transform: translateX(-50%); white-space: nowrap; pointer-events: none;
+    font-family: var(--display); font-size: 14px; color: var(--bone);
+  }
+  #orbit-users { position: absolute; inset: 0; pointer-events: none; }
+  .orbit-user { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; cursor: pointer; }
+  .orbit-user-dot {
+    position: relative; box-sizing: border-box; border: 4px solid var(--bone); border-radius: 50%; overflow: hidden;
+    background: var(--slate-2); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5); transition: transform 0.15s ease;
+  }
+  .orbit-user.selected .orbit-user-dot { transform: scale(1.18); box-shadow: 0 0 0 3px rgba(242, 237, 226, 0.9), 0 3px 12px rgba(0, 0, 0, 0.5); }
+  .orbit-user-label {
+    position: absolute; left: 50%; top: 100%; transform: translateX(-50%); margin-top: 8px; max-width: 96px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--display); font-size: 12px; color: var(--bone);
+  }
+  #orbit-hint {
+    position: absolute; left: 16px; right: 70px; top: calc(env(safe-area-inset-top, 0px) + 14px);
+    font-size: 12px; line-height: 1.4; color: var(--dust); pointer-events: none;
+  }
+  #orbit-close {
+    position: absolute; top: calc(env(safe-area-inset-top, 0px) + 10px); right: 12px; width: 44px; height: 44px;
+    padding: 0; margin: 0; border-radius: 50%; background: rgba(22, 32, 44, 0.75); color: var(--bone);
+    font-size: 26px; line-height: 1; z-index: 300;
+  }
+  .orbit-heart {
+    position: absolute; font-size: 72px; pointer-events: none; z-index: 400;
+    transform: translate(-50%, -50%); animation: heart-pop 0.8s ease-out forwards;
+  }
+  @keyframes heart-pop {
+    0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+    30% { transform: translate(-50%, -50%) scale(1.25); opacity: 1; }
+    100% { transform: translate(-50%, -110%) scale(1); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .orbit-heart { animation-duration: 0.01s; } }
 
   /* Full-screen swipeable photo viewer */
   #viewer {
@@ -342,9 +381,17 @@
 </main>
 
 <!-- Radial photo-cluster popup, shown on long-press over a photo bubble -->
-<div id="radial-popup" class="hidden" onclick="closeRadial()">
-  <div id="radial-circles"></div>
-  <button class="secondary" id="radial-close" onclick="closeRadial()" style="width:auto;padding:8px 16px;">Close</button>
+<div id="orbit" class="hidden">
+  <div id="orbit-backdrop"></div>
+  <svg id="orbit-lines"></svg>
+  <div id="orbit-wheel">
+    <div id="orbit-track"></div>
+    <div id="orbit-center"><div id="orbit-center-img" class="orbit-img"></div></div>
+  </div>
+  <div id="orbit-caption"></div>
+  <div id="orbit-users"></div>
+  <div id="orbit-hint">Slide a finger around the ring &middot; tap the big photo to open it &middot; double-tap to &#10084;&#65039;</div>
+  <button id="orbit-close" aria-label="Close">&times;</button>
 </div>
 
 <!-- Full-screen swipeable photo viewer -->
@@ -454,6 +501,7 @@ async function toggleDrawer() {
 
 // ---------- view switching ----------
 function hideAll() {
+  closeOrbit();
   stopLivePolling();
   stopMemoryPolling();
   stopAutoPing();
@@ -724,7 +772,10 @@ async function openMemory(tripId, tripName) {
   activeMap = memoryMap;
   attachLongPress(mapEl);
 
-  memoryMap.on("load", () => {
+  const membersReady = loadMembers(state.packId).catch(err => console.error("Members failed:", err));
+  memoryMap.on("load", async () => {
+    await membersReady; // names + colors before anything is drawn
+    if (!memoryMap || document.getElementById("view-memory").classList.contains("hidden")) return;
     refreshMemoryStream(tripId);
     stopMemoryPolling();
     // This is the actual fix for "I don't see their photo until I reload" -
@@ -859,6 +910,8 @@ function postComment(mediaId) {
 
 // ---------- live multi-member map ----------
 let liveMap = null, liveMapInterval = null, activeMap = null, activeBubbles = [], activeMediaById = {}, packMembersById = {};
+let memberColorIndex = {}; // userId -> position in the i'Hive's member list (drives each person's color)
+let suppressMarkerClickUntil = 0; // stops the tap that ends a long-press from re-opening things
 const MAP_STYLE_URL = "mapbox://styles/mapbox/streets-v12"; // bright, matches the reference recording
 // mapboxgl.accessToken is set at boot from GET /config - see boot() below.
 // Never hardcode the token here: GitHub's push protection blocks committing
@@ -875,27 +928,66 @@ function makePinElement(className, label) {
 
 function addPhotoMarker(map, bubble) {
   const firstMedia = activeMediaById[bubble.mediaIds[0]];
+  // The clickable element carries NO image. The picture lives on a child with
+  // pointer-events:none - so when you press and hold, iOS finds nothing to
+  // offer "Save/Copy image" for (that menu was hijacking the long-press).
   const el = document.createElement("div");
-  el.className = "photo-pin-dot";
-  if (firstMedia) el.style.backgroundImage = `url('${firstMedia.url}')`;
+  el.className = "photo-pin";
+  const img = document.createElement("div");
+  img.className = "photo-pin-img";
+  if (firstMedia) img.style.backgroundImage = `url('${firstMedia.url}')`;
+  el.appendChild(img);
   if (bubble.mediaIds.length > 1) {
     const badge = document.createElement("div");
     badge.className = "photo-count-badge";
     badge.textContent = bubble.mediaIds.length;
     el.appendChild(badge);
   }
+  // One small colored dot per person who took photos here (one color = one person)
+  const uids = [...new Set(bubble.mediaIds.map(id => activeMediaById[id]?.user_id).filter(Boolean))];
+  if (uids.length) {
+    const dots = document.createElement("div");
+    dots.className = "photo-pin-users";
+    uids.slice(0, 5).forEach(uid => {
+      const d = document.createElement("span");
+      d.style.background = colorForUser(uid);
+      dots.appendChild(d);
+    });
+    el.appendChild(dots);
+  }
+  el.addEventListener("click", ev => {
+    ev.stopPropagation();
+    if (Date.now() < suppressMarkerClickUntil) return;
+    openOrbit(gatherPhotosNear(map, map.project([bubble.lng, bubble.lat])));
+  });
   return new mapboxgl.Marker({ element: el }).setLngLat([bubble.lng, bubble.lat]).addTo(map);
+}
+
+// Every photo within a thumb-width of a point on the map, grouped by who took it.
+function gatherPhotosNear(map, point) {
+  const PIXEL_RADIUS = 45;
+  const ids = new Set();
+  activeBubbles.forEach(b => {
+    const bp = map.project([b.lng, b.lat]);
+    const dx = bp.x - point.x, dy = bp.y - point.y;
+    if (Math.sqrt(dx * dx + dy * dy) <= PIXEL_RADIUS) b.mediaIds.forEach(id => ids.add(id));
+  });
+  const byUser = {};
+  ids.forEach(id => {
+    const m = activeMediaById[id];
+    if (m) (byUser[m.user_id] = byUser[m.user_id] || []).push(m);
+  });
+  return byUser;
 }
 
 // Draws one colored trail line per member, matching the reference look
 // (each "vehicle" leaves its own colored trace). `route` is the raw ping
 // list (every point, every user) from GET /trips/:id/route.
 async function drawPerMemberTrails(map, tripId, seenUserIdsSet, bounds) {
-  // Road-snapped per-member coordinates from the server (Mapbox Map
-  // Matching) - this is what fixes the zigzag/straight-line problem.
-  // The server already falls back to raw points if matching fails, so
-  // there's nothing extra to handle here.
-  const matched = await apiGet(`/trips/${tripId}/matched-route`);
+  // Road-following route per member, built server-side from every place we
+  // know they were (location pings + where their photos were taken).
+  // The server falls back to straight segments if routing fails.
+  const matched = await apiGet(`/trips/${tripId}/road-route`);
 
   Object.keys(matched).forEach(userId => {
     const coords = matched[userId];
@@ -923,11 +1015,27 @@ async function drawPerMemberTrails(map, tripId, seenUserIdsSet, bounds) {
   });
 }
 
+// A fixed, clearly-different palette, handed out in the order people joined -
+// so two people never end up with near-identical colors (a hash of the id did).
+const USER_COLORS = ["#E63946", "#1D7AFC", "#2BB673", "#F59E0B", "#8B5CF6", "#EC4899", "#14B8A6", "#F97316", "#64748B", "#A16207"];
 function colorForUser(userId) {
-  let hash = 0;
-  for (let i = 0; i < userId.length; i++) hash = userId.charCodeAt(i) + ((hash << 5) - hash);
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 65%, 55%)`;
+  const i = memberColorIndex[userId];
+  if (i !== undefined) return USER_COLORS[i % USER_COLORS.length];
+  let hash = 0; // someone we haven't loaded yet - stable fallback
+  for (let k = 0; k < userId.length; k++) hash = userId.charCodeAt(k) + ((hash << 5) - hash);
+  return `hsl(${Math.abs(hash) % 360}, 65%, 50%)`;
+}
+
+// Loads the i'Hive's members once, so names and colors are ready BEFORE anything
+// is drawn. (The Memory Stream used to show "?" names when opened directly.)
+async function loadMembers(packId) {
+  const members = await apiGet(`/packs/${packId}/members`);
+  packMembersById = {}; memberColorIndex = {};
+  members.forEach((m, i) => {
+    packMembersById[m.user_id] = m.users?.display_name || "Member";
+    memberColorIndex[m.user_id] = i;
+  });
+  return members;
 }
 
 function stopLivePolling() {
@@ -935,25 +1043,33 @@ function stopLivePolling() {
 }
 
 let liveTrailUserIds = new Set();
+let liveMemberMarkers = {}, livePhotoMarkers = [];
 async function initLiveMap(tripId, packId) {
   if (liveMap) { liveMap.remove(); liveMap = null; }
   liveTrailUserIds = new Set();
+  liveMemberMarkers = {}; livePhotoMarkers = []; // the old map is gone - so are its markers
   const el = document.getElementById("live-map");
-  liveMap = new mapboxgl.Map({ container: el, style: MAP_STYLE_URL, center: [0, 20], zoom: 1, projection: "mercator" });
-  liveMap.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-left");
-  activeMap = liveMap;
-
-  const members = await apiGet(`/packs/${packId}/members`);
-  packMembersById = {};
-  members.forEach(m => { packMembersById[m.user_id] = m.users?.display_name || "Member"; });
-  renderLiveLegend(members);
-
+  const map = new mapboxgl.Map({ container: el, style: MAP_STYLE_URL, center: [0, 20], zoom: 1, projection: "mercator" });
+  liveMap = map;
+  map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-left");
+  activeMap = map;
   attachLongPress(el);
   stopLivePolling();
-  liveMap.on("load", () => {
-    refreshLiveMap(tripId);
-    liveMapInterval = setInterval(() => refreshLiveMap(tripId), 6000); // "near-live" via polling
-  });
+
+  // THE BUG: this used to wait for the members request first and only THEN
+  // listen for the map's "load" event. If the map finished loading during that
+  // wait (easy when tiles are cached) the event had already fired, the listener
+  // never ran, and the live map stayed empty forever - while its legend (drawn
+  // after the wait) still showed. Now the "load" promise is created
+  // synchronously, so it can't be missed no matter which finishes first.
+  const mapLoaded = new Promise(resolve => map.once("load", resolve));
+  const membersReady = loadMembers(packId).then(renderLiveLegend).catch(err => console.error("Members failed:", err));
+
+  await Promise.all([mapLoaded, membersReady]);
+  // If you left the screen (or opened another trip) while waiting, don't start polling.
+  if (liveMap !== map || document.getElementById("view-trip").classList.contains("hidden")) return;
+  refreshLiveMap(tripId);
+  liveMapInterval = setInterval(() => refreshLiveMap(tripId), 6000); // "near-live" via polling
 }
 
 function renderLiveLegend(members) {
@@ -967,7 +1083,6 @@ function renderLiveLegend(members) {
   });
 }
 
-let liveMemberMarkers = {}, livePhotoMarkers = [];
 async function refreshLiveMap(tripId) {
   if (!liveMap || !liveMap.isStyleLoaded()) return;
   try {
@@ -1003,20 +1118,19 @@ async function refreshLiveMap(tripId) {
   } catch (err) { console.error("Live map refresh failed:", err); /* keep trying on next poll */ }
 }
 
-// ---------- long-press to open radial photo popup ----------
+// ---------- press-and-hold a photo spot to open the photo browser ----------
 const longPressAttached = new WeakSet();
 function attachLongPress(el) {
   if (longPressAttached.has(el)) return; // avoid stacking duplicate listeners on repeat visits
   longPressAttached.add(el);
 
-  let timer = null, startPoint = null, startPagePoint = null;
+  let timer = null, startPoint = null;
   const THRESHOLD_PX = 18, HOLD_MS = 550;
 
   function start(clientX, clientY) {
     const rect = el.getBoundingClientRect();
     startPoint = { x: clientX - rect.left, y: clientY - rect.top };
-    startPagePoint = { x: clientX, y: clientY }; // for positioning the popup where you actually pressed
-    timer = setTimeout(() => triggerLongPress(startPoint, startPagePoint), HOLD_MS);
+    timer = setTimeout(() => triggerLongPress(startPoint), HOLD_MS);
   }
   function move(clientX, clientY) {
     if (!startPoint || !timer) return;
@@ -1035,59 +1149,250 @@ function attachLongPress(el) {
   el.addEventListener("mouseleave", end);
 }
 
-function triggerLongPress(point, pagePoint) {
+function triggerLongPress(point) {
   if (!activeMap) return;
-  const PIXEL_RADIUS = 45;
-  const nearbyMediaIds = new Set();
-  activeBubbles.forEach(b => {
-    const bp = activeMap.project([b.lng, b.lat]);
-    const dx = bp.x - point.x, dy = bp.y - point.y;
-    if (Math.sqrt(dx * dx + dy * dy) <= PIXEL_RADIUS) b.mediaIds.forEach(id => nearbyMediaIds.add(id));
-  });
-  if (!nearbyMediaIds.size) return; // nothing here - just a normal press on empty map
-
-  const byUser = {};
-  nearbyMediaIds.forEach(id => {
-    const m = activeMediaById[id];
-    if (!m) return;
-    (byUser[m.user_id] = byUser[m.user_id] || []).push(m);
-  });
-  openRadialPopup(byUser, pagePoint);
+  const byUser = gatherPhotosNear(activeMap, point);
+  if (!Object.keys(byUser).length) return; // nothing here - just a normal press on the empty map
+  suppressMarkerClickUntil = Date.now() + 700; // lifting the finger shouldn't also count as a tap
+  openOrbit(byUser);
 }
 
-function openRadialPopup(byUser, pagePoint) {
-  const container = document.getElementById("radial-circles");
-  container.innerHTML = "";
+// ==== ORBIT START ====
+// The photo browser. Each person who took photos at a spot is a colored circle
+// joined by a line to that spot (one color = one person). The selected person's
+// photos sit on a ring you turn with one finger - like an iPod click wheel:
+// slide around the ring and the photos travel round it. The big center circle
+// is the photo in focus: tap = open it (comments, tags), double-tap = love it.
+const ORBIT_STEP_DEG = 26;  // angle between neighbouring photos on the ring
+const ORBIT_VISIBLE = 6;    // how many photos show on each side of the focused one
+const orbit = { open: false, items: [], photos: [], userIds: [], byUser: {}, pos: 0, target: 0, focus: -1,
+                raf: null, lastTap: 0, tapTimer: null, openedAt: 0 };
+const $orbit = id => document.getElementById(id);
+
+function openOrbit(byUser) {
   const userIds = Object.keys(byUser);
-  const radius = 70;
-  // Anchor at the actual spot you pressed, clamped so the fan of circles
-  // never gets cut off by the screen edges (this is the fix for "the
-  // bubble moving out of the map" - it used to always center on screen).
-  const margin = 110;
-  const anchorX = Math.min(Math.max(pagePoint.x, margin), window.innerWidth - margin);
-  const anchorY = Math.min(Math.max(pagePoint.y, margin + 30), window.innerHeight - margin);
-  container.style.left = `${anchorX}px`;
-  container.style.top = `${anchorY}px`;
+  if (!userIds.length) return;
+  userIds.forEach(id => byUser[id].sort((a, b) => new Date(a.captured_at) - new Date(b.captured_at)));
 
-  userIds.forEach((userId, i) => {
-    const angle = (Math.PI / (userIds.length + 1)) * (i + 1) + Math.PI; // fan upward from the press point
-    const x = radius * Math.cos(angle), y = radius * Math.sin(angle);
-    const circle = document.createElement("div");
-    circle.className = "radial-circle";
-    circle.style.left = `${x - 32}px`; circle.style.top = `${y - 32}px`;
-    const firstPhoto = byUser[userId][0];
-    if (firstPhoto) circle.style.backgroundImage = `url('${firstPhoto.url}')`;
-    const badge = document.createElement("div");
-    badge.className = "radial-circle-badge";
-    badge.style.background = colorForUser(userId);
-    badge.textContent = (packMembersById[userId] || "?").charAt(0).toUpperCase();
-    circle.appendChild(badge);
-    circle.onclick = (e) => { e.stopPropagation(); closeRadial(); openViewer(byUser[userId], packMembersById[userId] || "Member", 0); };
-    container.appendChild(circle);
-  });
-  document.getElementById("radial-popup").classList.remove("hidden");
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const Rw = Math.max(90, Math.min(140, vw * 0.34, vh * 0.2));    // ring radius
+  const itemSize = Rw >= 110 ? 46 : 38;                            // thumbnail size on the ring
+  const centerSize = Math.round(Rw * 1.15);                        // focused photo, in the middle
+  const Cx = vw / 2, Cy = Math.max(Rw + itemSize + 30, vh * 0.34); // ring center
+  const userSize = 54;
+  const Uy = Math.min(Cy + Rw + itemSize + 60, vh - 150);          // row of people
+  const Hx = Cx, Hy = Math.min(Uy + 90, vh - 50);                  // the "spot" they all connect to
+  Object.assign(orbit, { open: true, byUser, userIds, vw, vh, Rw, itemSize, centerSize, Cx, Cy, Uy, Hx, Hy, userSize,
+                         openedAt: Date.now(), selected: null, photos: [], items: [], pos: 0, target: 0, focus: -1 });
+
+  const S = 2 * (Rw + itemSize);
+  const wheel = $orbit("orbit-wheel");
+  wheel.style.width = wheel.style.height = `${S}px`;
+  wheel.style.left = `${Cx - S / 2}px`; wheel.style.top = `${Cy - S / 2}px`;
+  const track = $orbit("orbit-track");
+  track.style.width = track.style.height = `${2 * Rw}px`;
+  const center = $orbit("orbit-center");
+  center.style.width = center.style.height = `${centerSize}px`;
+  const caption = $orbit("orbit-caption");
+  caption.style.left = `${Cx}px`; caption.style.top = `${Cy + Rw + itemSize / 2 + 14}px`;
+
+  buildOrbitUsers();
+  selectOrbitUser(userIds[0]);
+  $orbit("orbit").classList.remove("hidden");
 }
-function closeRadial() { document.getElementById("radial-popup").classList.add("hidden"); }
+
+function buildOrbitUsers() {
+  const usersEl = $orbit("orbit-users"), svg = $orbit("orbit-lines");
+  usersEl.innerHTML = ""; svg.innerHTML = "";
+  const NS = "http://www.w3.org/2000/svg";
+  const n = orbit.userIds.length;
+  const spacing = Math.min(100, (orbit.vw - 40) / Math.max(n, 1));
+  const startX = orbit.Cx - spacing * (n - 1) / 2;
+
+  orbit.userIds.forEach((uid, i) => {
+    const ux = startX + i * spacing, color = colorForUser(uid);
+    const line = document.createElementNS(NS, "line");
+    line.setAttribute("x1", orbit.Hx); line.setAttribute("y1", orbit.Hy);
+    line.setAttribute("x2", ux); line.setAttribute("y2", orbit.Uy + orbit.userSize / 2);
+    line.setAttribute("stroke", color); line.setAttribute("stroke-width", "3"); line.setAttribute("stroke-linecap", "round");
+    svg.appendChild(line);
+
+    const wrap = document.createElement("div");
+    wrap.className = "orbit-user"; wrap.dataset.uid = uid;
+    wrap.style.left = `${ux}px`; wrap.style.top = `${orbit.Uy}px`;
+    const dot = document.createElement("div");
+    dot.className = "orbit-user-dot";
+    dot.style.width = dot.style.height = `${orbit.userSize}px`;
+    dot.style.borderColor = color;
+    const img = document.createElement("div"); img.className = "orbit-img";
+    img.style.backgroundImage = `url('${orbit.byUser[uid][0].url}')`;
+    dot.appendChild(img); wrap.appendChild(dot);
+    const label = document.createElement("div");
+    label.className = "orbit-user-label";
+    label.textContent = `${packMembersById[uid] || "Member"} (${orbit.byUser[uid].length})`;
+    wrap.appendChild(label);
+    wrap.addEventListener("click", ev => { ev.stopPropagation(); selectOrbitUser(uid); });
+    usersEl.appendChild(wrap);
+  });
+
+  const hub = document.createElementNS(NS, "circle");
+  hub.setAttribute("cx", orbit.Hx); hub.setAttribute("cy", orbit.Hy); hub.setAttribute("r", "8");
+  hub.setAttribute("fill", "#F2EDE2"); hub.setAttribute("stroke", "rgba(0,0,0,0.45)"); hub.setAttribute("stroke-width", "2");
+  svg.appendChild(hub);
+  const txt = document.createElementNS(NS, "text");
+  txt.setAttribute("x", orbit.Hx); txt.setAttribute("y", orbit.Hy + 26);
+  txt.setAttribute("text-anchor", "middle"); txt.setAttribute("fill", "#93A2AE"); txt.setAttribute("font-size", "12");
+  txt.textContent = "photos taken here";
+  svg.appendChild(txt);
+}
+
+function selectOrbitUser(uid) {
+  orbit.selected = uid;
+  orbit.photos = orbit.byUser[uid];
+  orbit.pos = 0; orbit.target = 0; orbit.focus = -1;
+  cancelAnimationFrame(orbit.raf); orbit.raf = null;
+  const color = colorForUser(uid), wheel = $orbit("orbit-wheel");
+  wheel.querySelectorAll(".orbit-item").forEach(el => el.remove());
+  orbit.items = orbit.photos.map((p, i) => {
+    const el = document.createElement("div");
+    el.className = "orbit-item"; el.dataset.i = i;
+    el.style.width = el.style.height = `${orbit.itemSize}px`;
+    el.style.borderColor = color;
+    const img = document.createElement("div"); img.className = "orbit-img";
+    img.style.backgroundImage = `url('${p.url}')`;
+    el.appendChild(img);
+    wheel.appendChild(el);
+    return el;
+  });
+  $orbit("orbit-users").querySelectorAll(".orbit-user").forEach(b => b.classList.toggle("selected", b.dataset.uid === uid));
+  $orbit("orbit-center").style.borderColor = color;
+  renderOrbit();
+}
+
+// Place every photo on the ring for the current (fractional) position.
+function renderOrbit() {
+  const n = orbit.photos.length;
+  orbit.items.forEach((el, i) => {
+    const d = orbit.pos - i, ad = Math.abs(d);
+    if (ad > ORBIT_VISIBLE + 0.5) { el.style.display = "none"; return; }
+    el.style.display = "block";
+    const ang = (-90 + d * ORBIT_STEP_DEG) * Math.PI / 180;      // photo 0 starts at 12 o'clock
+    const x = orbit.Rw * Math.cos(ang), y = orbit.Rw * Math.sin(ang);
+    const scale = ad < 1 ? 1.25 - 0.25 * ad : 1;                  // the focused photo swells a little
+    const fade = ad > ORBIT_VISIBLE - 1.5 ? Math.max(0, (ORBIT_VISIBLE + 0.5 - ad) / 2) : 1;
+    el.style.opacity = String(fade);
+    el.style.zIndex = String(100 - Math.round(ad * 10));
+    el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -50%) scale(${scale.toFixed(3)})`;
+  });
+  const idx = Math.max(0, Math.min(n - 1, Math.round(orbit.pos)));
+  if (idx !== orbit.focus && n > 0) {
+    orbit.focus = idx;
+    const p = orbit.photos[idx];
+    $orbit("orbit-center-img").style.backgroundImage = `url('${p.url}')`;
+    const when = new Date(p.captured_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    $orbit("orbit-caption").textContent = `${packMembersById[orbit.selected] || "Member"} · ${when} · ${idx + 1} of ${n}`;
+  }
+}
+
+function animateOrbit() {
+  cancelAnimationFrame(orbit.raf);
+  const tick = () => {
+    const diff = orbit.target - orbit.pos;
+    if (Math.abs(diff) < 0.01) { orbit.pos = orbit.target; orbit.raf = null; renderOrbit(); return; }
+    orbit.pos += diff * 0.25;
+    renderOrbit();
+    orbit.raf = requestAnimationFrame(tick);
+  };
+  orbit.raf = requestAnimationFrame(tick);
+}
+
+function stepOrbit(dir) {
+  orbit.target = Math.max(0, Math.min(orbit.photos.length - 1, Math.round(orbit.target) + dir));
+  animateOrbit();
+}
+
+function likeOrbitPhoto() {
+  const p = orbit.photos[orbit.focus];
+  if (!p) return;
+  const heart = document.createElement("div");
+  heart.className = "orbit-heart"; heart.textContent = "❤️";
+  heart.style.left = `${orbit.Cx}px`; heart.style.top = `${orbit.Cy}px`;
+  $orbit("orbit").appendChild(heart);
+  setTimeout(() => heart.remove(), 800);
+  apiPut(`/media/${p.id}/reactions`, { userId: state.userId, emoji: "❤️" }).catch(err => console.error("Like failed:", err));
+}
+
+function closeOrbit() {
+  if (!orbit.open) return;
+  orbit.open = false;
+  cancelAnimationFrame(orbit.raf); orbit.raf = null;
+  clearTimeout(orbit.tapTimer);
+  $orbit("orbit").classList.add("hidden");
+}
+
+function initOrbit() {
+  const wheel = $orbit("orbit-wheel");
+  let dragging = false, lastAngle = 0, startX = 0, startY = 0, downItem = null;
+  const angleOf = (x, y) => Math.atan2(y - orbit.Cy, x - orbit.Cx) * 180 / Math.PI;
+
+  wheel.addEventListener("pointerdown", e => {
+    if (!orbit.open) return;
+    if (e.target.closest && e.target.closest("#orbit-center")) return; // the middle is a tap target, not part of the wheel
+    dragging = true; startX = e.clientX; startY = e.clientY;
+    downItem = e.target.closest ? e.target.closest(".orbit-item") : null;
+    lastAngle = angleOf(e.clientX, e.clientY);
+    cancelAnimationFrame(orbit.raf); orbit.raf = null;
+    if (wheel.setPointerCapture && e.pointerId !== undefined) { try { wheel.setPointerCapture(e.pointerId); } catch (_) {} }
+  });
+  wheel.addEventListener("pointermove", e => {
+    if (!dragging || !orbit.photos.length) return;
+    if (Math.hypot(e.clientX - orbit.Cx, e.clientY - orbit.Cy) < 24) return; // near the middle the angle jumps around
+    const a = angleOf(e.clientX, e.clientY);
+    let delta = a - lastAngle;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    lastAngle = a;
+    // finger clockwise = ring turns clockwise = next photo comes round to the top
+    orbit.pos = Math.max(0, Math.min(orbit.photos.length - 1, orbit.pos + delta / ORBIT_STEP_DEG));
+    orbit.target = orbit.pos;
+    renderOrbit();
+  });
+  const release = e => {
+    if (!dragging) return;
+    dragging = false;
+    const moved = Math.hypot(e.clientX - startX, e.clientY - startY);
+    orbit.target = (moved < 8 && downItem) ? Number(downItem.dataset.i) : Math.round(orbit.pos); // tap a thumbnail = bring it round
+    animateOrbit();
+  };
+  wheel.addEventListener("pointerup", release);
+  wheel.addEventListener("pointercancel", release);
+  wheel.addEventListener("wheel", e => { e.preventDefault(); stepOrbit(e.deltaY > 0 ? 1 : -1); }, { passive: false });
+
+  $orbit("orbit-center").addEventListener("click", ev => {
+    ev.stopPropagation();
+    const now = Date.now();
+    if (now - orbit.lastTap < 320) { clearTimeout(orbit.tapTimer); orbit.lastTap = 0; likeOrbitPhoto(); return; }
+    orbit.lastTap = now;
+    orbit.tapTimer = setTimeout(() => {
+      orbit.lastTap = 0;
+      openViewer(orbit.photos, packMembersById[orbit.selected] || "Member", orbit.focus);
+    }, 320);
+  });
+
+  // Tap anywhere on the dim background closes it (ignored for the first half
+  // second, so the finger that opened it can't immediately close it again).
+  $orbit("orbit-backdrop").addEventListener("click", () => { if (Date.now() - orbit.openedAt > 500) closeOrbit(); });
+  $orbit("orbit-close").addEventListener("click", closeOrbit);
+
+  document.addEventListener("keydown", e => {
+    if (!orbit.open || !document.getElementById("viewer").classList.contains("hidden")) return;
+    if (e.key === "Escape") closeOrbit();
+    else if (e.key === "ArrowRight" || e.key === "ArrowDown") stepOrbit(1);
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") stepOrbit(-1);
+  });
+}
+initOrbit();
+// ==== ORBIT END ====
 
 // ---------- full-screen swipeable viewer with transparent floating comments ----------
 let viewerPhotos = [], viewerIndex = 0;

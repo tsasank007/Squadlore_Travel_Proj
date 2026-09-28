@@ -59,15 +59,14 @@ router.get("/:tripId/route", async (req, res) => {
   }
 });
 
-router.get("/:tripId/matched-route", async (req, res) => {
-  // Road-snapped per-member route, via Mapbox Map Matching - this is what
-  // fixes the zigzag/straight-line-through-a-lake problem, replacing the
-  // old approach of just connecting raw GPS points in order.
+router.get("/:tripId/road-route", async (req, res) => {
+  // Each member's route, following real roads between every place we know
+  // they were (location pings + where their photos were taken).
   try {
-    const matched = await locationService.getMapMatchedRoutePerUser(req.params.tripId);
-    res.json(matched);
+    const routes = await locationService.getRoadRoutePerUser(req.params.tripId);
+    res.json(routes);
   } catch (err: any) {
-    console.error("Map matching failed:", err);
+    console.error("Road route failed:", err);
     res.status(500).json({ error: "Couldn't load the route right now." });
   }
 });

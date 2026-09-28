@@ -96,8 +96,9 @@ export class PackService {
   async listMembers(packId: string) {
     const { data, error } = await supabase
       .from("pack_members")
-      .select("user_id, role, status, users(display_name, avatar_url)")
-      .eq("pack_id", packId);
+      .select("user_id, role, status, joined_at, users(display_name, avatar_url)")
+      .eq("pack_id", packId)
+      .order("joined_at", { ascending: true }); // stable order - each person's color depends on it
 
     if (error) throw error;
     return data;
