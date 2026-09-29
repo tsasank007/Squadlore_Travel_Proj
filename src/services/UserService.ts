@@ -51,4 +51,28 @@ export class UserService {
     if (error) throw error;
     return data;
   }
+
+  async setAvatar(userId: string, fileBuffer: Buffer, mimeType: string) {
+    // Reuses the existing "trip-photos" bucket under an avatars/ prefix -
+    // no second bucket to create in Supabase, one less manual setup step.
+    const ext = (mimeType.split("/")[1] || "jpg").replace("jpeg", "jpg");
+    const path = `avatars/${userId}-${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("trip-photos")
+      .upload(path, fileBuffer, { contentType: mimeType, upsert: false });
+    if (uploadError) throw uploadError;
+
+    const { data: urlData } = supabase.storage.from("trip-photos").getPublicUrl(path);
+
+    const { data, error } = await supabase
+      .from("users")
+      .update({ avatar_url: urlData.publicUrl })
+      .eq("id", userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
 }

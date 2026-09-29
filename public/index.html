@@ -277,6 +277,8 @@
   <div class="card">
     <h2>Account info</h2>
     <div id="drawer-account" class="status"></div>
+    <label class="status" for="drawer-avatar-input">Profile picture</label>
+    <input type="file" id="drawer-avatar-input" accept="image/*" onchange="changeMyAvatar()" />
   </div>
   <div class="card">
     <h2>Trips / i'Hives</h2>
@@ -295,6 +297,8 @@
     <h2>Who are you?</h2>
     <input id="setup-name" placeholder="Your name" />
     <input id="setup-phone" placeholder="Phone number (e.g. +15551234567)" />
+    <label class="status" for="setup-avatar">Profile picture (optional) - helps others spot your photos on the map</label>
+    <input type="file" id="setup-avatar" accept="image/*" style="margin-bottom:8px" />
     <button onclick="setupUser()">Continue</button>
   </div>
 
@@ -462,6 +466,12 @@ function handleStaleAccountOr(err) {
 }
 
 // ---------- drawer (hamburger nav) ----------
+function changeMyAvatar() {
+  const file = document.getElementById("drawer-avatar-input").files[0];
+  if (!file) return;
+  uploadAvatar(state.userId, file).then(() => alert("Profile picture updated - it'll show up next time a photo browser opens."));
+}
+
 async function toggleDrawer() {
   const drawer = document.getElementById("drawer");
   const overlay = document.getElementById("drawer-overlay");
@@ -614,12 +624,20 @@ function checkLocationPermission() {
 function setupUser() {
   const name = document.getElementById("setup-name").value.trim();
   const phone = document.getElementById("setup-phone").value.trim();
+  const avatarFile = document.getElementById("setup-avatar").files[0];
   if (!name || !phone) return alert("Enter both name and phone number.");
   apiPost("/users", { phoneNumber: phone, displayName: name }).then(user => {
     state.userId = user.id; state.displayName = user.display_name;
     localStorage.setItem("squadlore_user", JSON.stringify({ id: user.id, displayName: user.display_name }));
+    if (avatarFile) uploadAvatar(user.id, avatarFile); // fire-and-forget, doesn't block continuing
     if (pendingJoinCode) joinViaCode(pendingJoinCode); else showHome();
   }).catch(err => alert("Error: " + err.message));
+}
+
+function uploadAvatar(userId, file) {
+  const formData = new FormData();
+  formData.append("avatar", file);
+  return fetch(`${API}/users/${userId}/avatar`, { method: "POST", body: formData }).catch(() => {});
 }
 
 function createPack() {
@@ -706,7 +724,7 @@ function autoSharePing() {
       userId: state.userId, lat: pos.coords.latitude, lng: pos.coords.longitude, capturedAt: new Date().toISOString(),
     }).catch(() => {});
   }, () => { /* silent - the manual button and permission status cover this */ },
-     { enableHighAccuracy: false, timeout: 15000, maximumAge: 20000 });
+     { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
 }
 
 function uploadPhoto() {
@@ -742,7 +760,7 @@ function uploadPhoto() {
       navigator.geolocation.getCurrentPosition(
         pos => { apiPatch(`/media/${media.id}/location`, { lat: pos.coords.latitude, lng: pos.coords.longitude }).catch(() => {}); },
         () => { /* no location this time - photo still stands on its own */ },
-        { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
       );
     }
   }).catch(err => alert("Error: " + err.message));
@@ -1028,12 +1046,14 @@ function colorForUser(userId) {
 
 // Loads the i'Hive's members once, so names and colors are ready BEFORE anything
 // is drawn. (The Memory Stream used to show "?" names when opened directly.)
+let packMemberAvatars = {}; // userId -> avatar_url, kept separate so it doesn't disturb the many places that already read packMembersById as a plain name string
 async function loadMembers(packId) {
   const members = await apiGet(`/packs/${packId}/members`);
-  packMembersById = {}; memberColorIndex = {};
+  packMembersById = {}; memberColorIndex = {}; packMemberAvatars = {};
   members.forEach((m, i) => {
     packMembersById[m.user_id] = m.users?.display_name || "Member";
     memberColorIndex[m.user_id] = i;
+    if (m.users?.avatar_url) packMemberAvatars[m.user_id] = m.users.avatar_url;
   });
   return members;
 }
@@ -1224,9 +1244,21 @@ function buildOrbitUsers() {
     dot.className = "orbit-user-dot";
     dot.style.width = dot.style.height = `${orbit.userSize}px`;
     dot.style.borderColor = color;
-    const img = document.createElement("div"); img.className = "orbit-img";
-    img.style.backgroundImage = `url('${orbit.byUser[uid][0].url}')`;
-    dot.appendChild(img); wrap.appendChild(dot);
+    const avatarUrl = packMemberAvatars[uid];
+    if (avatarUrl) {
+      const img = document.createElement("div"); img.className = "orbit-img";
+      img.style.backgroundImage = `url('${avatarUrl}')`;
+      dot.appendChild(img);
+    } else {
+      // No profile picture set - a plain colored circle with their initial,
+      // not one of their photos (that didn't clearly read as "a person").
+      dot.style.background = color;
+      dot.style.display = "flex"; dot.style.alignItems = "center"; dot.style.justifyContent = "center";
+      dot.style.fontFamily = "var(--display)"; dot.style.fontWeight = "700"; dot.style.color = "var(--dusk)";
+      dot.style.fontSize = `${Math.round(orbit.userSize * 0.42)}px`;
+      dot.textContent = (packMembersById[uid] || "?").charAt(0).toUpperCase();
+    }
+    wrap.appendChild(dot);
     const label = document.createElement("div");
     label.className = "orbit-user-label";
     label.textContent = `${packMembersById[uid] || "Member"} (${orbit.byUser[uid].length})`;

@@ -125,6 +125,16 @@ language sql stable as $$
   order by captured_at asc;
 $$;
 
+create or replace function latest_ping_for_user(p_trip_id uuid, p_user_id uuid)
+returns table (lat double precision, lng double precision, captured_at timestamptz)
+language sql stable as $$
+  select st_y(geom::geometry) as lat, st_x(geom::geometry) as lng, captured_at
+  from location_pings
+  where trip_id = p_trip_id and user_id = p_user_id
+  order by captured_at desc
+  limit 1;
+$$;
+
 create or replace function latest_ping_per_user(p_trip_id uuid)
 returns table (user_id uuid, lat double precision, lng double precision, captured_at timestamptz)
 language sql stable as $$

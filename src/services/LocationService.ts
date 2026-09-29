@@ -20,6 +20,16 @@ export class LocationService {
   // route handlers or mobile clients.
 
   async recordPing(input: RecordPingInput) {
+    const isOutlier = await this.impliesImpossibleSpeed(input);
+    if (isOutlier) {
+      // A real GPS glitch (weak signal briefly reports a point km away),
+      // not a real jump - storing it would draw a garbage line through it
+      // and make two people in the same car look like they took different
+      // routes. Drop it silently; the next ping a few seconds later will
+      // almost always be fine.
+      return;
+    }
+
     const { error } = await supabase.from("location_pings").insert({
       trip_id: input.tripId,
       user_id: input.userId,
@@ -29,6 +39,25 @@ export class LocationService {
     });
 
     if (error) throw error;
+  }
+
+  private async impliesImpossibleSpeed(input: RecordPingInput): Promise<boolean> {
+    // Uses the same safe pattern as the other route functions: a plain
+    // lat/lng RPC, not a raw select on `geom` - PostGIS geometry doesn't
+    // reliably serialize to JSON through Supabase's REST layer, which is
+    // exactly why those other functions exist.
+    const { data, error } = await supabase.rpc("latest_ping_for_user", {
+      p_trip_id: input.tripId,
+      p_user_id: input.userId,
+    });
+    const last = data?.[0];
+    if (error || !last) return false; // first ping for this user - nothing to compare against
+
+    const seconds = (new Date(input.capturedAt).getTime() - new Date(last.captured_at).getTime()) / 1000;
+    if (seconds <= 0) return false; // out-of-order arrival - let it through rather than guess
+    const meters = haversineMeters([last.lng, last.lat], [input.lng, input.lat]);
+    const impliedKmh = (meters / seconds) * 3.6;
+    return impliedKmh > 300; // generous - real driving never reaches this, GPS glitches often do
   }
 
   async recordBatch(pings: RecordPingInput[]) {
