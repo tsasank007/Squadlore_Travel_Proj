@@ -40,6 +40,7 @@ export class MediaService {
         captured_at: input.capturedAt,
         lat: input.lat,
         lng: input.lng,
+        media_type: input.mimeType.startsWith("video/") ? "video" : "photo",
       })
       .select()
       .single();

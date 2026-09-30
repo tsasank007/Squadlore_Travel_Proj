@@ -130,10 +130,33 @@ export class LocationService {
     const result: Record<string, [number, number][]> = {};
     for (const userId of Object.keys(pointsByUser)) {
       const ordered = pointsByUser[userId].sort((a, b) => a.t - b.t);
-      result[userId] = await routeThroughPoints(ordered.map((p) => [p.lng, p.lat] as [number, number]));
+      const clean = dropSpeedOutliers(ordered);
+      result[userId] = await routeThroughPoints(clean.map((p) => [p.lng, p.lat] as [number, number]));
     }
     return result;
   }
+}
+
+// We use low-accuracy location (for speed - see uploadPhoto/sharePing on the
+// client) which can occasionally return a position based on cell towers that's
+// briefly far off. Every point is treated as a waypoint the road route MUST
+// visit, so one bad reading creates a visible detour there and back. If
+// reaching a point would require implausible speed from the last GOOD point,
+// it's almost certainly a bad fix, not real travel - drop it.
+const MAX_PLAUSIBLE_SPEED_MS = 45; // ~100mph/160kmh - generous enough to never reject real highway driving
+export function dropSpeedOutliers(points: TimedPoint[]): TimedPoint[] {
+  if (points.length < 3) return points;
+  const kept: TimedPoint[] = [points[0]];
+  for (let i = 1; i < points.length; i++) {
+    const prev = kept[kept.length - 1];
+    const cur = points[i];
+    const dtSec = Math.max(1, (cur.t - prev.t) / 1000);
+    const distM = haversineMeters([prev.lng, prev.lat], [cur.lng, cur.lat]);
+    if (distM / dtSec <= MAX_PLAUSIBLE_SPEED_MS) kept.push(cur);
+    // else: drop it, and keep comparing to the last GOOD point - so a
+    // genuinely fast-but-real point right after isn't wrongly punished too
+  }
+  return kept;
 }
 
 interface TimedPoint { lng: number; lat: number; t: number }
@@ -190,7 +213,14 @@ async function routeChunk(chunk: [number, number][]): Promise<[number, number][]
 export async function routeThroughPoints(points: [number, number][]): Promise<[number, number][]> {
   if (points.length < 2) return points;
 
-  let spacing = 200;
+  // Tighter spacing keeps more real points, which gives the road-routing
+  // engine less room to pick a DIFFERENT real road than the one actually
+  // driven (it always finds A real route between waypoints - the fewer and
+  // farther apart they are, the more it's guessing at the path between them,
+  // not reconstructing your exact one). The tradeoff: more real points means
+  // more Mapbox Directions requests for very long trips, so this only
+  // loosens automatically if a trip is long enough to need it.
+  let spacing = 60;
   let waypoints = thinPoints(points, spacing);
   while (waypoints.length > 480 && spacing < 6400) { spacing *= 2; waypoints = thinPoints(points, spacing); }
   if (waypoints.length < 2) return points.length >= 2 ? [points[0], points[points.length - 1]] : points;

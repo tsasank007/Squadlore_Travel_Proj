@@ -10,7 +10,11 @@ const tripService = new TripService();
 const locationService = new LocationService();
 const mediaService = new MediaService();
 const memoryStreamService = new MemoryStreamService();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+// A 1-3 minute video is typically 20-100MB, well past a photo's size - one
+// shared limit generous enough for video (150MB) applies to both, since a
+// phone's camera app is what decides whether you got a photo or a video,
+// not this server.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 150 * 1024 * 1024 } });
 
 router.post("/", async (req, res) => {
   try {

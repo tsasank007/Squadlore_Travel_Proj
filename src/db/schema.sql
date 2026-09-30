@@ -74,7 +74,8 @@ create table media (
   lat double precision,
   lng double precision,
   captured_at timestamptz not null,
-  uploaded_at timestamptz not null default now()
+  uploaded_at timestamptz not null default now(),
+  media_type text not null default 'photo' check (media_type in ('photo', 'video'))
 );
 
 create table media_reactions (
