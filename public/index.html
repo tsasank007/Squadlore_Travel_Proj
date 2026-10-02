@@ -113,7 +113,7 @@
 
   /* Full-bleed: breaks out of main's side padding so the map spans the
      whole screen width, not a small boxed card. */
-  #map, #live-map {
+  #map, #live-map, #plan-map {
     height: 55vh; margin: 0 -16px 12px; width: calc(100% + 32px);
     border-radius: 0; border: none; overflow: hidden;
   }
@@ -264,8 +264,11 @@
      swap the emoji for real icons once that arrives. */
   #camera-bar {
     position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
-    transform: translateX(-50%); z-index: 30; display: flex; gap: 14px;
+    transform: translateX(-50%); z-index: 35; display: flex; gap: 14px;
+    pointer-events: none; /* only the buttons themselves are tappable, not this wrapper */
   }
+  #camera-bar button { pointer-events: auto; }
+  .camera-fab svg { pointer-events: none; } /* a tap always resolves to the button, never the icon inside it */
   .camera-fab {
     width: 64px; height: 64px; border-radius: 50%; margin: 0; padding: 0;
     background: rgba(22, 32, 44, 0.35); color: var(--dusk); font-size: 26px;
@@ -337,8 +340,25 @@
     <div class="card">
       <h3>Create a new i'Hive</h3>
       <input id="new-pack-name" placeholder="New i'Hive name" />
-      <input id="new-pack-start" placeholder="Starting point (optional)" />
+      <input id="new-pack-start" placeholder="Starting point (optional)" readonly onclick="openPlanRoute()" />
+      <button class="secondary" onclick="openPlanRoute()">🗺️ Plan a route on the map</button>
       <button onclick="createPack()">+ New i'Hive</button>
+    </div>
+  </div>
+
+  <!-- PLAN A ROUTE: phase 1 of the new map-centric landing experience -->
+  <div id="view-plan" class="hidden">
+    <button class="back" onclick="showHome()">&larr; i'Hives</button>
+    <div class="card">
+      <h3>Plan a route</h3>
+      <input id="plan-start" placeholder="Start (e.g. Seattle, WA)" />
+      <input id="plan-end" placeholder="End (e.g. Leavenworth, WA)" />
+      <button onclick="previewRoute()">Preview route</button>
+      <div id="plan-status" class="status"></div>
+    </div>
+    <div class="card">
+      <div id="plan-map"></div>
+      <button id="plan-use-btn" class="hidden" onclick="useThisRoute()">Use this route for a new i'Hive</button>
     </div>
   </div>
 
@@ -560,7 +580,7 @@ function hideAll() {
   stopLivePolling();
   stopMemoryPolling();
   stopAutoPing();
-  ["setup", "home", "pack", "trip", "memory"].forEach(v => document.getElementById("view-" + v).classList.add("hidden"));
+  ["setup", "home", "pack", "trip", "memory", "plan"].forEach(v => document.getElementById("view-" + v).classList.add("hidden"));
 }
 function showSetup() { hideAll(); document.getElementById("view-setup").classList.remove("hidden"); }
 async function showHome() {
@@ -1446,6 +1466,92 @@ function likeOrbitPhoto() {
   $orbit("orbit").appendChild(heart);
   setTimeout(() => heart.remove(), 800);
   apiPut(`/media/${p.id}/reactions`, { userId: state.userId, emoji: "❤️" }).catch(err => console.error("Like failed:", err));
+}
+
+// ---------- Phase 1 of the landing page: plan a route before creating an i'Hive ----------
+let planMap = null, planMapReady = null, planMarkers = [], planStartText = "";
+
+function openPlanRoute() {
+  hideAll(); document.getElementById("view-plan").classList.remove("hidden");
+  document.getElementById("plan-status").textContent = "";
+  document.getElementById("plan-use-btn").classList.add("hidden");
+  if (planMap) { planMap.remove(); planMap = null; }
+  const el = document.getElementById("plan-map");
+  planMap = new mapboxgl.Map({ container: el, style: MAP_STYLE_URL, center: [-122.3, 47.6], zoom: 8, projection: "mercator" });
+  planMap.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-left");
+  // Same fix as the live map's race condition: the promise is created
+  // synchronously, so a style that loads instantly (cached) can't be missed.
+  planMapReady = new Promise(resolve => planMap.once("load", resolve));
+}
+
+async function geocodePlace(query) {
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}&limit=1`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!data.features || !data.features.length) throw new Error(`Couldn't find "${query}"`);
+  return { lngLat: data.features[0].center, placeName: data.features[0].place_name };
+}
+
+async function previewRoute() {
+  const startText = document.getElementById("plan-start").value.trim();
+  const endText = document.getElementById("plan-end").value.trim();
+  if (!startText || !endText) return alert("Enter both a start and an end.");
+
+  const mapAtRequestTime = planMap; // if the person leaves this screen mid-request, stop touching the old map
+  document.getElementById("plan-status").textContent = "Looking up both places...";
+  document.getElementById("plan-use-btn").classList.add("hidden");
+
+  try {
+    const [start, end] = await Promise.all([geocodePlace(startText), geocodePlace(endText)]);
+    if (planMap !== mapAtRequestTime) return;
+    planStartText = start.placeName;
+
+    await planMapReady;
+    if (planMap !== mapAtRequestTime) return;
+
+    planMarkers.forEach(m => m.remove());
+    planMarkers = [
+      new mapboxgl.Marker({ color: "#6FBE8F" }).setLngLat(start.lngLat).addTo(planMap),
+      new mapboxgl.Marker({ color: "#E63946" }).setLngLat(end.lngLat).addTo(planMap),
+    ];
+
+    document.getElementById("plan-status").textContent = "Finding a route...";
+    const coordStr = `${start.lngLat[0]},${start.lngLat[1]};${end.lngLat[0]},${end.lngLat[1]}`;
+    const dirUrl = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordStr}?geometries=geojson&access_token=${mapboxgl.accessToken}`;
+    const dirRes = await fetch(dirUrl);
+    const dirData = await dirRes.json();
+    if (planMap !== mapAtRequestTime) return;
+    if (dirData.code !== "Ok" || !dirData.routes || !dirData.routes.length) throw new Error("Couldn't find a route between those two places.");
+
+    const coords = dirData.routes[0].geometry.coordinates;
+    const geojson = { type: "Feature", geometry: { type: "LineString", coordinates: coords } };
+    if (planMap.getSource("plan-route")) {
+      planMap.getSource("plan-route").setData(geojson);
+    } else {
+      planMap.addSource("plan-route", { type: "geojson", data: geojson });
+      planMap.addLayer({
+        id: "plan-route-line", type: "line", source: "plan-route",
+        layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": "#E8743B", "line-width": 4 },
+      });
+    }
+
+    const bounds = new mapboxgl.LngLatBounds();
+    coords.forEach(c => bounds.extend(c));
+    planMap.fitBounds(bounds, { padding: 50 });
+
+    const miles = (dirData.routes[0].distance / 1609).toFixed(1);
+    const mins = Math.round(dirData.routes[0].duration / 60);
+    document.getElementById("plan-status").textContent = `${miles} miles, about ${mins} min - ${start.placeName} to ${end.placeName}`;
+    document.getElementById("plan-use-btn").classList.remove("hidden");
+  } catch (err) {
+    if (planMap === mapAtRequestTime) document.getElementById("plan-status").textContent = "";
+    alert("Error: " + err.message);
+  }
+}
+
+function useThisRoute() {
+  document.getElementById("new-pack-start").value = planStartText;
+  showHome();
 }
 
 function closeOrbit() {
