@@ -268,8 +268,9 @@
   }
   .camera-fab {
     width: 64px; height: 64px; border-radius: 50%; margin: 0; padding: 0;
-    background: var(--ember); color: var(--dusk); font-size: 26px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.5); border: 3px solid var(--bone);
+    background: rgba(22, 32, 44, 0.35); color: var(--dusk); font-size: 26px;
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4); border: 2px solid rgba(242, 237, 226, 0.55);
     display: flex; align-items: center; justify-content: center;
   }
   .camera-fab-video { background: var(--slate-2); width: 52px; height: 52px; font-size: 20px; align-self: flex-end; }
@@ -367,9 +368,9 @@
   <div id="view-trip" class="hidden">
     <button class="back" onclick="showHome()">&larr; i'Hives</button>
     <div id="camera-bar">
-      <input type="file" id="photo-input" accept="image/*" capture="environment" onchange="captureMedia(this, \'photo\')" hidden />
-      <input type="file" id="video-input" accept="video/*" capture="environment" onchange="captureMedia(this, \'video\')" hidden />
-      <button id="camera-btn" class="camera-fab" onclick="document.getElementById(\'photo-input\').click()" aria-label="Take a photo">
+      <input type="file" id="photo-input" accept="image/*" capture="environment" onchange="captureMedia(this, 'photo')" hidden />
+      <input type="file" id="video-input" accept="video/*" capture="environment" onchange="captureMedia(this, 'video')" hidden />
+      <button id="camera-btn" class="camera-fab" onclick="document.getElementById('photo-input').click()" aria-label="Take a photo">
         <svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true">
           <rect x="4" y="12" width="32" height="22" rx="6" fill="var(--bone)"/>
           <rect x="4" y="12" width="32" height="7" rx="6" fill="var(--dusk)"/>
@@ -383,7 +384,7 @@
       <!-- Video disabled for now, on purpose - the backend, schema, and viewer
            still fully support it. To bring it back: delete this comment and
            the "hidden" attribute below - nothing else needs to change. -->
-      <button id="video-btn" class="camera-fab camera-fab-video" onclick="document.getElementById(\'video-input\').click()" aria-label="Record a video" hidden>🎥</button>
+      <button id="video-btn" class="camera-fab camera-fab-video" onclick="document.getElementById('video-input').click()" aria-label="Record a video" hidden>🎥</button>
     </div>
     <div class="card">
       <h2 id="trip-title"></h2>
