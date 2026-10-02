@@ -24,7 +24,23 @@ export class MediaService {
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
       .upload(path, input.fileBuffer, { contentType: input.mimeType, upsert: false });
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      // Supabase's free tier is 1GB of Storage - after enough test photos and
+      // videos, every upload can start failing with the same generic error.
+      // We deliberately never show raw storage/DB errors to the user, but a
+      // full quota needs a DIFFERENT message than "try again" - retrying a
+      // full quota will never succeed, so telling someone to just retry is
+      // actively misleading.
+      const msg = (uploadError.message || "").toLowerCase();
+      if (msg.includes("quota") || msg.includes("exceeded") || msg.includes("maximum allowed size") || msg.includes("payload too large")) {
+        const quotaErr: any = new Error(
+          "Storage is full - check Supabase's Storage usage (free tier is 1GB) and either delete old test photos/videos or upgrade the plan."
+        );
+        quotaErr.isQuotaError = true;
+        throw quotaErr;
+      }
+      throw uploadError;
+    }
 
     const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
     const url = urlData.publicUrl;

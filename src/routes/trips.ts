@@ -111,7 +111,10 @@ router.post("/:tripId/media", upload.single("photo"), async (req, res) => {
     res.status(201).json(media);
   } catch (err: any) {
     console.error("Media upload failed:", err);
-    res.status(500).json({ error: "Upload failed - please try again." }); // never show raw DB/storage errors to the user
+    // A full storage quota gets its own clear, actionable message - telling
+    // someone to just "try again" is actively misleading when retrying can
+    // never succeed. Anything else still hides the raw technical error.
+    res.status(500).json({ error: err.isQuotaError ? err.message : "Upload failed - please try again." });
   }
 });
 

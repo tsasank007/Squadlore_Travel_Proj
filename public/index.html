@@ -277,6 +277,10 @@
     display: flex; align-items: center; justify-content: center;
   }
   .camera-fab-video { background: var(--slate-2); width: 52px; height: 52px; font-size: 20px; align-self: flex-end; }
+  .camera-fab-end {
+    background: rgba(230, 57, 70, 0.85); width: 40px; height: 40px; font-size: 14px;
+    align-self: flex-end; border-color: rgba(242, 237, 226, 0.7);
+  }
   #viewer-close {
     position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border-radius: 50%;
     background: rgba(22, 32, 44, 0.6); color: var(--bone); font-size: 22px; line-height: 1; z-index: 51;
@@ -405,13 +409,13 @@
            still fully support it. To bring it back: delete this comment and
            the "hidden" attribute below - nothing else needs to change. -->
       <button id="video-btn" class="camera-fab camera-fab-video" onclick="document.getElementById('video-input').click()" aria-label="Record a video" hidden>🎥</button>
+      <button id="end-trip-btn" class="camera-fab camera-fab-end" onclick="endTrip()" aria-label="End trip">⏹</button>
     </div>
     <div class="card">
       <h2 id="trip-title"></h2>
       <div id="trip-status" class="status"></div>
       <div id="location-permission-status" class="status"></div>
       <button onclick="sharePing()">📍 Share my location now</button>
-      <div id="trip-actions"></div>
     </div>
     <div class="card">
       <h3>Hive members</h3>
@@ -656,8 +660,6 @@ function openTrip(tripId, tripName, startPoint) {
   document.getElementById("trip-status").textContent = startPoint
     ? `Starting point: ${startPoint} - live, share your location and photos below.`
     : "Live - share your location and photos below.";
-  document.getElementById("trip-actions").innerHTML =
-    `<button class="secondary" onclick="endTrip()">End trip &amp; generate Memory Stream</button>`;
   renderInviteLinkBox(document.getElementById("trip-invite-box"), state.packId);
   renderMembersInline(document.getElementById("trip-member-list"), state.packId);
   initLiveMap(tripId, state.packId);

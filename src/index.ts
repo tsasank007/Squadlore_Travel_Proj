@@ -11,7 +11,13 @@ const app = express();
 app.set("trust proxy", 1); // needed once Caddy/HTTPS sits in front, so req.protocol reports "https" correctly (used by the join-link URL)
 app.use(cors());
 app.use(express.json({ limit: "15mb" })); // raised for base64 photo uploads (MVP - see MediaService note)
-app.use(express.static(path.join(__dirname, "..", "public")));
+app.use(express.static(path.join(__dirname, "..", "public"), {
+  // No cache-control was being sent at all, which on mobile Safari especially
+  // can mean a deployed update doesn't actually reach the phone without a
+  // forceful manual refresh - this has likely been the real cause of several
+  // "the fix isn't showing up" reports. Force a fresh fetch every time.
+  setHeaders: (res) => res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate"),
+}));
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
