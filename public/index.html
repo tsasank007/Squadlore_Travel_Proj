@@ -270,17 +270,18 @@
   #camera-bar button { pointer-events: auto; }
   .camera-fab svg { pointer-events: none; } /* a tap always resolves to the button, never the icon inside it */
   .camera-fab {
-    width: 64px; height: 64px; border-radius: 50%; margin: 0; padding: 0;
-    background: rgba(22, 32, 44, 0.35); color: var(--dusk); font-size: 26px;
+    width: 58px; height: 58px; border-radius: 50%; margin: 0; padding: 0;
+    background: rgba(22, 32, 44, 0.35); color: var(--dusk); font-size: 22px;
     -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
     box-shadow: 0 4px 16px rgba(0,0,0,0.4); border: 2px solid rgba(242, 237, 226, 0.55);
     display: flex; align-items: center; justify-content: center;
   }
-  .camera-fab-video { background: var(--slate-2); width: 52px; height: 52px; font-size: 20px; align-self: flex-end; }
-  .camera-fab-end {
-    background: rgba(230, 57, 70, 0.85); width: 40px; height: 40px; font-size: 14px;
-    align-self: flex-end; border-color: rgba(242, 237, 226, 0.7);
-  }
+  /* My own display:flex above was beating the browser's built-in [hidden]
+     behavior - the hidden attribute was never actually working on this
+     element. This restores it explicitly. */
+  .camera-fab[hidden] { display: none; }
+  .camera-fab-video { background: var(--slate-2); }
+  .camera-fab-end { background: rgba(230, 57, 70, 0.85); border-color: rgba(242, 237, 226, 0.7); }
   #viewer-close {
     position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border-radius: 50%;
     background: rgba(22, 32, 44, 0.6); color: var(--bone); font-size: 22px; line-height: 1; z-index: 51;
