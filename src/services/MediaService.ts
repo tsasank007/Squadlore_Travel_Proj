@@ -106,6 +106,34 @@ export class MediaService {
     return data;
   }
 
+  async deleteMedia(mediaId: string, requestingUserId: string) {
+    const { data: media, error: fetchError } = await supabase
+      .from("media")
+      .select("user_id, url")
+      .eq("id", mediaId)
+      .single();
+    if (fetchError) throw fetchError;
+    if (!media) throw new Error("Photo not found.");
+    if (media.user_id !== requestingUserId) {
+      const err: any = new Error("You can only delete your own photos.");
+      err.isForbidden = true;
+      throw err;
+    }
+
+    // Best-effort storage cleanup - if this fails (e.g. already gone), the
+    // database row still gets deleted, which is what actually matters for
+    // the person using the app. Reactions/comments/tags cascade-delete
+    // automatically (already set up in the schema).
+    const marker = `/${BUCKET}/`;
+    const idx = media.url.indexOf(marker);
+    if (idx !== -1) {
+      await supabase.storage.from(BUCKET).remove([media.url.slice(idx + marker.length)]).catch(() => {});
+    }
+
+    const { error: deleteError } = await supabase.from("media").delete().eq("id", mediaId);
+    if (deleteError) throw deleteError;
+  }
+
   async getMediaForTrip(tripId: string, includePrivate = false) {
     // Joins the uploader's display name so the client doesn't need a
     // separate lookup just to show "who posted this."

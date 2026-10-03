@@ -6,16 +6,32 @@ export interface CreateUserInput {
   avatarUrl?: string;
 }
 
+// A real bug, found from a real report: phone numbers were matched as an
+// EXACT string. "2065551234", "(206) 555-1234", and "+1 206-555-1234" all
+// identify the same person, but an exact match treats them as three
+// different people - silently creating a brand-new, empty account and
+// making every past i'Hive, trip, and photo look "lost." This normalizes
+// before every match AND every insert, so formatting can never matter again.
+export function normalizePhone(phone: string): string {
+  const stripped = phone.replace(/[^\d+]/g, "");
+  // "+12065551234" and "2065551234" are the same US number typed two
+  // common ways - treat a leading +1 (11 digits total) the same as its
+  // bare 10-digit form, rather than two different accounts.
+  if (/^\+1\d{10}$/.test(stripped)) return stripped.slice(2);
+  return stripped;
+}
+
 export class UserService {
   // MVP only: no auth/SMS-verification flow yet - that belongs in
   // Phase 1 proper, alongside the invite-by-phone-number flow.
   // This exists so we can create test users for the end-to-end loop.
 
   async findOrCreateByPhone(input: CreateUserInput) {
+    const phone = normalizePhone(input.phoneNumber);
     const { data: existing, error: findError } = await supabase
       .from("users")
       .select("*")
-      .eq("phone_number", input.phoneNumber)
+      .eq("phone_number", phone)
       .maybeSingle();
 
     if (findError) throw findError;
@@ -41,7 +57,7 @@ export class UserService {
     const { data, error } = await supabase
       .from("users")
       .insert({
-        phone_number: input.phoneNumber,
+        phone_number: phone,
         display_name: input.displayName,
         avatar_url: input.avatarUrl,
       })

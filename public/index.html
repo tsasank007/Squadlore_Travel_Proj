@@ -68,6 +68,17 @@
   }
   button:hover { background: #F08652; }
   button:active { transform: scale(0.98); }
+  /* The raw file-input "Choose File" button looked jarringly unstyled next
+     to everything else - a real instance of the "buttons look inconsistent"
+     feedback. Hide the native control, use a normal button-styled label
+     to trigger it instead. */
+  input[type="file"] { display: none; }
+  .file-label {
+    display: block; width: 100%; padding: 13px; border-radius: 999px;
+    background: var(--slate-2); color: var(--bone); font-size: 15px; font-weight: 600;
+    text-align: center; cursor: pointer; margin-bottom: 8px; font-family: var(--display);
+    box-sizing: border-box;
+  }
   button.secondary { background: var(--slate-2); color: var(--bone); }
   button.secondary:hover { background: #37495B; }
   button:disabled { opacity: 0.5; }
@@ -311,7 +322,7 @@
   <div class="card">
     <h2>Account info</h2>
     <div id="drawer-account" class="status"></div>
-    <label class="status" for="drawer-avatar-input">Profile picture</label>
+    <label class="file-label" for="drawer-avatar-input">🖼️ Change profile picture</label>
     <input type="file" id="drawer-avatar-input" accept="image/*" onchange="changeMyAvatar()" />
   </div>
   <div class="card">
@@ -331,7 +342,8 @@
     <h2>Who are you?</h2>
     <input id="setup-name" placeholder="Your name" />
     <input id="setup-phone" placeholder="Phone number (e.g. +15551234567)" />
-    <label class="status" for="setup-avatar">Profile picture (optional) - helps others spot your photos on the map</label>
+    <p class="status">Profile picture (optional) - helps others spot your photos on the map</p>
+    <label class="file-label" for="setup-avatar">🖼️ Choose a photo</label>
     <input type="file" id="setup-avatar" accept="image/*" style="margin-bottom:8px" />
     <button onclick="setupUser()">Continue</button>
   </div>
@@ -477,6 +489,7 @@
   <div id="viewer-overlay-top" class="viewer-overlay">
     <strong id="viewer-name"></strong>
     <span id="viewer-time" class="status"></span>
+    <button id="viewer-delete-btn" class="hidden" onclick="deleteCurrentViewerPhoto()" aria-label="Delete">🗑️</button>
   </div>
   <div id="viewer-overlay-bottom" class="viewer-overlay">
     <div id="viewer-reactions" class="reaction-row"></div>
@@ -518,6 +531,10 @@ async function apiPut(path, body) {
 }
 async function apiPatch(path, body) {
   const res = await fetch(API + path, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || res.statusText); }
+}
+async function apiDelete(path, body) {
+  const res = await fetch(API + path, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
   if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || res.statusText); }
 }
 
@@ -1659,6 +1676,7 @@ function renderViewerPhoto() {
   }
   document.getElementById("viewer-time").textContent = new Date(m.captured_at).toLocaleString() +
     (viewerPhotos.length > 1 ? ` &middot; ${viewerIndex + 1} of ${viewerPhotos.length} - swipe for more` : "");
+  document.getElementById("viewer-delete-btn").classList.toggle("hidden", m.user_id !== state.userId);
 
   const reactionRow = document.getElementById("viewer-reactions");
   reactionRow.innerHTML = "";
@@ -1708,6 +1726,15 @@ function postViewerComment() {
   apiPost(`/media/${m.id}/comments`, { userId: state.userId, text }).then(() => { input.value = ""; renderViewerPhoto(); });
 }
 function closeViewer() { document.getElementById("viewer").classList.add("hidden"); }
+
+function deleteCurrentViewerPhoto() {
+  const m = viewerPhotos[viewerIndex];
+  if (!m || !confirm("Delete this photo? This can't be undone.")) return;
+  apiDelete(`/media/${m.id}`, { userId: state.userId }).then(() => {
+    closeViewer();
+    closeOrbit(); // the deleted photo may have been part of what's shown there
+  }).catch(err => alert("Error: " + err.message));
+}
 
 // ---------- join via shared link ----------
 function joinViaCode(code) {

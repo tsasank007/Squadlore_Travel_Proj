@@ -32,6 +32,15 @@ router.put("/:mediaId/reactions", async (req, res) => {
   }
 });
 
+router.delete("/:mediaId", async (req, res) => {
+  try {
+    await mediaService.deleteMedia(req.params.mediaId, req.body.userId);
+    res.status(204).send();
+  } catch (err: any) {
+    res.status(err.isForbidden ? 403 : 500).json({ error: err.message });
+  }
+});
+
 router.patch("/:mediaId/location", async (req, res) => {
   // Uploads no longer wait for GPS - this attaches the location afterward,
   // once (if) it resolves, so a photo can still land on the Memory Stream
