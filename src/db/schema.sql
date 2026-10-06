@@ -47,6 +47,16 @@ create table trips (
   ended_at timestamptz
 );
 
+-- "End MY trip": one row per person who has ended their own part of a trip.
+-- The trip itself keeps going for everyone else, and the person who left can
+-- still view the trip and everyone's photos forever. Deleting the row = rejoin.
+create table if not exists trip_participants (
+  trip_id uuid not null references trips(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  left_at timestamptz not null default now(),
+  primary key (trip_id, user_id)
+);
+
 create table location_pings (
   id uuid primary key default uuid_generate_v4(),
   trip_id uuid not null references trips(id) on delete cascade,

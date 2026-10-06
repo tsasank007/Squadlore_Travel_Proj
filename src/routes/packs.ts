@@ -80,7 +80,8 @@ router.get("/:packId/members", async (req, res) => {
 
 router.get("/:packId/trips", async (req, res) => {
   try {
-    const trips = await tripService.listTripsForPack(req.params.packId);
+    const userId = typeof req.query.userId === "string" ? req.query.userId : undefined;
+    const trips = await tripService.listTripsForPack(req.params.packId, userId);
     res.json(trips);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

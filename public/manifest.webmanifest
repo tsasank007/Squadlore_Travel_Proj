@@ -1,0 +1,20 @@
+{
+  "name": "Squadlore Travel",
+  "short_name": "Squadlore",
+  "description": "Travel together: share your route and photos live, and keep the memories.",
+  "id": "/",
+  "start_url": "/?mode=camera",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#16202C",
+  "theme_color": "#16202C",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Take a photo", "short_name": "Camera", "url": "/?mode=camera", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "My i'Hives", "short_name": "i'Hives", "url": "/", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -1,4 +1,5 @@
 import { supabase } from "../db/supabaseClient";
+import { leftUserIds } from "./TripService";
 
 export interface RecordPingInput {
   tripId: string;
@@ -96,7 +97,10 @@ export class LocationService {
     });
 
     if (error) throw error;
-    return data;
+    // Someone who ended their own trip stops being a live dot on everyone's map.
+    // (Their route and photos stay - those are part of the trip's memory.)
+    const left = await leftUserIds(tripId);
+    return left.size ? (data ?? []).filter((p: any) => !left.has(p.user_id)) : data;
   }
 
   async getRoadRoutePerUser(tripId: string): Promise<Record<string, [number, number][]>> {

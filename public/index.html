@@ -3,6 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#16202C">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Squadlore">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Squadlore_Travel_Proj</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -275,7 +282,7 @@
      swap the emoji for real icons once that arrives. */
   #camera-bar {
     position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
-    transform: translateX(-50%); z-index: 35; display: flex; gap: 14px;
+    transform: translateX(-50%); z-index: 15; display: flex; gap: 44px; /* above the page + map, BELOW the side menu (20/21) and every full-screen layer */
     pointer-events: none; /* only the buttons themselves are tappable, not this wrapper */
   }
   #camera-bar button { pointer-events: auto; }
@@ -291,6 +298,46 @@
      behavior - the hidden attribute was never actually working on this
      element. This restores it explicitly. */
   .camera-fab[hidden] { display: none; }
+
+  /* In-page camera: full screen, shutter always reachable, X always at the top. */
+  #camera-view { position: fixed; inset: 0; z-index: 70; background: #000; }
+  #cam-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+  #cam-video.mirror { transform: scaleX(-1); }
+  #cam-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  #cam-flash.go { animation: cam-flash 0.22s ease-out; }
+  @keyframes cam-flash { from { opacity: 0.85; } to { opacity: 0; } }
+  #cam-top {
+    position: absolute; left: 12px; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 12px);
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .cam-btn, #cam-chip {
+    margin: 0; width: auto; border: 1px solid rgba(242, 237, 226, 0.4);
+    background: rgba(22, 32, 44, 0.55); color: var(--bone);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  .cam-btn { width: 46px; height: 46px; padding: 0; border-radius: 50%; font-size: 20px; line-height: 1; flex: 0 0 auto; }
+  #cam-chip { padding: 9px 14px; font-size: 13px; font-weight: 500; border-radius: 999px; flex: 1 1 auto; min-width: 0; }
+  #cam-chip.cam-chip-warn { background: rgba(230, 57, 70, 0.85); }
+  #cam-bottom {
+    position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
+    display: flex; align-items: center; justify-content: space-around;
+  }
+  #cam-shutter {
+    margin: 0; width: 78px; height: 78px; padding: 0; border-radius: 50%;
+    background: var(--bone); border: 5px solid rgba(242, 237, 226, 0.45); background-clip: padding-box;
+    box-shadow: 0 0 0 3px rgba(22, 32, 44, 0.45);
+  }
+  #cam-shutter:active { transform: scale(0.92); }
+  #cam-thumb {
+    width: 52px; height: 52px; border-radius: 12px; background-size: cover; background-position: center;
+    border: 2px solid var(--bone); visibility: hidden;
+  }
+  #cam-fallback {
+    position: absolute; left: 20px; right: 20px; top: 50%; transform: translateY(-50%);
+    padding: 20px; border-radius: 20px; background: rgba(22, 32, 44, 0.92); color: var(--bone); text-align: center;
+  }
+  #cam-fallback p { margin: 0 0 14px; line-height: 1.45; }
+  #camera-view.no-stream #cam-shutter, #camera-view.no-stream #cam-flip, #camera-view.no-stream #cam-thumb { visibility: hidden; }
   .camera-fab-video { background: var(--slate-2); }
   .camera-fab-end { background: rgba(230, 57, 70, 0.85); border-color: rgba(242, 237, 226, 0.7); }
   #viewer-close {
@@ -322,8 +369,13 @@
   <div class="card">
     <h2>Account info</h2>
     <div id="drawer-account" class="status"></div>
-    <label class="file-label" for="drawer-avatar-input">🖼️ Change profile picture</label>
+    <label class="file-label" id="drawer-avatar-label" for="drawer-avatar-input">🖼️ Change profile picture</label>
     <input type="file" id="drawer-avatar-input" accept="image/*" onchange="changeMyAvatar()" />
+  </div>
+  <div class="card" id="install-card">
+    <h2>Install the app</h2>
+    <p id="install-text" class="status"></p>
+    <button id="install-btn" class="hidden">Install</button>
   </div>
   <div class="card">
     <h2>Trips / i'Hives</h2>
@@ -334,6 +386,7 @@
     <h2>Hive members</h2>
     <div id="drawer-members" class="status"></div>
   </div>
+  <p id="build-label" class="status" style="margin:14px 4px 0;font-size:12px;"></p>
 </div>
 <main>
 
@@ -350,6 +403,7 @@
 
   <!-- HOME: list of i'Hives, separate from creating a new one -->
   <div id="view-home" class="hidden">
+    <p id="home-note" class="status"></p>
     <div class="card">
       <h2>i'Hives</h2>
       <div id="pack-list"></div>
@@ -407,7 +461,7 @@
     <div id="camera-bar">
       <input type="file" id="photo-input" accept="image/*" capture="environment" onchange="captureMedia(this, 'photo')" hidden />
       <input type="file" id="video-input" accept="video/*" capture="environment" onchange="captureMedia(this, 'video')" hidden />
-      <button id="camera-btn" class="camera-fab" onclick="document.getElementById('photo-input').click()" aria-label="Take a photo">
+      <button id="camera-btn" class="camera-fab" onclick="openCamera()" aria-label="Take a photo">
         <svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true">
           <rect x="4" y="12" width="32" height="22" rx="6" fill="var(--bone)"/>
           <rect x="4" y="12" width="32" height="7" rx="6" fill="var(--dusk)"/>
@@ -422,7 +476,10 @@
            still fully support it. To bring it back: delete this comment and
            the "hidden" attribute below - nothing else needs to change. -->
       <button id="video-btn" class="camera-fab camera-fab-video" onclick="document.getElementById('video-input').click()" aria-label="Record a video" hidden>🎥</button>
-      <button id="end-trip-btn" class="camera-fab camera-fab-end" onclick="endTrip()" aria-label="End trip">⏹</button>
+      <!-- "End MY trip": only the person who taps it is affected, and it asks first.
+           (It was switched off for a while because it used to end the trip for
+           EVERYONE. To hide it again: add the "hidden" attribute below.) -->
+      <button id="end-trip-btn" class="camera-fab camera-fab-end" onclick="endTrip()" aria-label="End my trip">🏁</button>
     </div>
     <div class="card">
       <h2 id="trip-title"></h2>
@@ -450,6 +507,9 @@
     <button class="back" onclick="showPack()">&larr; Back to i'Hive</button>
     <div class="card">
       <h2 id="memory-title">Memory Stream</h2>
+      <p id="memory-banner" class="status hidden">You ended your trip. Everyone else is still travelling - this updates live, and you can rejoin any time.</p>
+      <button id="rejoin-trip-btn" class="secondary hidden" onclick="rejoinTrip()">&#9654; Rejoin this trip</button>
+      <button id="resume-trip-btn" class="secondary" onclick="resumeTrip()">&#9654; Resume this trip</button>
       <p id="memory-hint" class="status">Hold a colored dot on the map to see who took photos there.</p>
       <div id="map"></div>
       <details id="bubble-list-details">
@@ -506,9 +566,30 @@
   </div>
 </div>
 
+<div id="camera-view" class="hidden">
+  <video id="cam-video" autoplay playsinline muted></video>
+  <div id="cam-flash"></div>
+  <div id="cam-top">
+    <button id="cam-close" class="cam-btn" aria-label="Close camera">&#10005;</button>
+    <button id="cam-chip" class="cam-chip">Tap the circle to take a photo</button>
+    <button id="cam-flip" class="cam-btn" aria-label="Switch camera">&#128260;</button>
+  </div>
+  <div id="cam-fallback" class="hidden">
+    <p id="cam-fallback-msg"></p>
+    <button id="cam-native-btn">Use my phone's camera app instead</button>
+  </div>
+  <div id="cam-bottom">
+    <div id="cam-thumb" aria-hidden="true"></div>
+    <button id="cam-shutter" aria-label="Take photo"></button>
+    <button id="cam-map" class="cam-btn" aria-label="Back to the map">&#128506;&#65039;</button>
+  </div>
+</div>
+
 <script>
 const API = ""; // same origin - client is served by the same Express server
 
+const BUILD_ID = "2026-10-06-end-my-trip-avatar-fix"; // shown in the side menu; the server reports the same id at /health
+document.getElementById("build-label").textContent = "Build: " + BUILD_ID;
 let state = { userId: null, displayName: null, packId: null, packName: null, tripId: null, tripName: null };
 
 // ---------- API helpers ----------
@@ -554,9 +635,15 @@ function handleStaleAccountOr(err) {
 
 // ---------- drawer (hamburger nav) ----------
 function changeMyAvatar() {
-  const file = document.getElementById("drawer-avatar-input").files[0];
+  const input = document.getElementById("drawer-avatar-input");
+  const file = input.files[0];
   if (!file) return;
-  uploadAvatar(state.userId, file).then(() => alert("Profile picture updated - it'll show up next time a photo browser opens."));
+  if (!state.userId) { input.value = ""; return alert("Sign in first, then you can add a profile picture."); }
+  uploadAvatar(state.userId, file).then(ok => {
+    input.value = "";
+    alert(ok ? "Profile picture updated - it'll show up next time a photo browser opens."
+             : "Couldn't update your profile picture right now - please try again.");
+  });
 }
 
 async function toggleDrawer() {
@@ -565,6 +652,12 @@ async function toggleDrawer() {
   const opening = drawer.classList.contains("hidden");
   drawer.classList.toggle("hidden");
   overlay.classList.toggle("hidden");
+  if (opening) {
+    // Before anyone has signed in there's no account to change a picture for.
+    const signedIn = !!state.userId;
+    document.getElementById("drawer-avatar-label").classList.toggle("hidden", !signedIn);
+    if (!signedIn) document.getElementById("drawer-account").textContent = "Not signed in yet";
+  }
   if (opening && state.userId) {
     document.getElementById("drawer-account").textContent = state.displayName || "You";
     try {
@@ -598,6 +691,8 @@ async function toggleDrawer() {
 
 // ---------- view switching ----------
 function hideAll() {
+  closeCamera();
+  const homeNote = document.getElementById("home-note"); if (homeNote) homeNote.textContent = "";
   closeOrbit();
   stopLivePolling();
   stopMemoryPolling();
@@ -605,6 +700,14 @@ function hideAll() {
   ["setup", "home", "pack", "trip", "memory", "plan"].forEach(v => document.getElementById("view-" + v).classList.add("hidden"));
 }
 function showSetup() { hideAll(); document.getElementById("view-setup").classList.remove("hidden"); }
+// A trip is "live" for YOU only if it's active AND you haven't ended your own
+// part of it. Ending your trip never ends it for anyone else.
+const isLive = t => t.status === "active" && !t.left;
+const memoryModeFor = t => (t.status === "active" && t.left ? "left" : "ended");
+const tripBadge = t => isLive(t)
+  ? "<span class='badge active'>live</span>"
+  : `<span class='badge'>${t.status === "active" ? "you ended" : "ended"}</span>`;
+
 async function showHome() {
   hideAll(); document.getElementById("view-home").classList.remove("hidden");
   const packs = await apiGet(`/packs?userId=${state.userId}`);
@@ -612,17 +715,16 @@ async function showHome() {
   list.innerHTML = "";
   let anyTrips = false;
   for (const p of packs) {
-    const trips = await apiGet(`/packs/${p.id}/trips`);
+    const trips = await apiGet(`/packs/${p.id}/trips?userId=${state.userId}`);
     trips.forEach(t => {
       anyTrips = true;
       const el = document.createElement("div");
       el.className = "pack-item";
-      const badge = t.status === "active" ? "<span class='badge active'>live</span>" : "<span class='badge'>ended</span>";
-      el.innerHTML = `<span>${t.name}</span>${badge}`;
+      el.innerHTML = `<span>${t.name}</span>${tripBadge(t)}`;
       el.onclick = () => {
         state.packId = p.id; state.packName = p.name;
-        if (t.status === "active") openTrip(t.id, t.name, t.discussion_location);
-        else openMemory(t.id, t.name);
+        if (isLive(t)) openTrip(t.id, t.name, t.discussion_location);
+        else openMemory(t.id, t.name, memoryModeFor(t));
       };
       list.appendChild(el);
     });
@@ -644,8 +746,8 @@ async function renderMembersInline(container, packId) {
 }
 async function openPack(packId, packName) {
   state.packId = packId; state.packName = packName;
-  const trips = await apiGet(`/packs/${packId}/trips`);
-  const activeTrip = trips.find(t => t.status === "active");
+  const trips = await apiGet(`/packs/${packId}/trips?userId=${state.userId}`);
+  const activeTrip = trips.find(isLive);
   if (activeTrip) {
     // The whole point of this fix: clicking an i'Hive with a live trip goes
     // straight into it. No separate "i'Hive detail" screen in between.
@@ -665,8 +767,8 @@ async function openPack(packId, packName) {
   trips.forEach(t => {
     const el = document.createElement("div");
     el.className = "trip-item";
-    el.innerHTML = `<span>${t.name}</span><span class='badge'>ended</span>`;
-    el.onclick = () => openMemory(t.id, t.name);
+    el.innerHTML = `<span>${t.name}</span>${tripBadge(t)}`;
+    el.onclick = () => openMemory(t.id, t.name, memoryModeFor(t));
     list.appendChild(el);
   });
 }
@@ -714,15 +816,21 @@ function setupUser() {
   apiPost("/users", { phoneNumber: phone, displayName: name }).then(user => {
     state.userId = user.id; state.displayName = user.display_name;
     localStorage.setItem("squadlore_user", JSON.stringify({ id: user.id, displayName: user.display_name }));
-    if (avatarFile) uploadAvatar(user.id, avatarFile); // fire-and-forget, doesn't block continuing
-    if (pendingJoinCode) joinViaCode(pendingJoinCode); else showHome();
+    if (avatarFile && user && user.id) uploadAvatar(user.id, avatarFile); // fire-and-forget, doesn't block continuing
+    if (pendingJoinCode) joinViaCode(pendingJoinCode); else if (wantsCameraFirst) launchCameraFirst(); else showHome();
   }).catch(err => alert("Error: " + err.message));
 }
 
+// Resolves true only if the server actually accepted the picture. (It used to
+// ignore the server's answer - so a refused upload still said "updated" - and
+// it would send the id "null" if the menu was opened before signing in.)
 function uploadAvatar(userId, file) {
+  if (!userId) return Promise.resolve(false);
   const formData = new FormData();
   formData.append("avatar", file);
-  return fetch(`${API}/users/${userId}/avatar`, { method: "POST", body: formData }).catch(() => {});
+  return fetch(`${API}/users/${userId}/avatar`, { method: "POST", body: formData })
+    .then(res => res.ok)
+    .catch(() => false);
 }
 
 function createPack() {
@@ -815,38 +923,35 @@ function autoSharePing() {
 // Shared by both the photo and video buttons - the server tells photo from
 // video apart by the file's own mime type, so this needed no real branching,
 // just different button labels/status text for the person tapping it.
-function captureMedia(input, kind) {
-  const file = input.files[0];
-  if (!file) return;
+// One upload path shared by the phone-camera fallback (file input) and the
+// in-page camera: retries a dropped connection, never waits on GPS, attaches
+// the location afterward. Resolves with the saved media row; rejects (no
+// popup) if it truly can't be saved - each caller decides how to tell the user.
+//   opts.capturedAt - ISO time the shot was taken (defaults to now)
+//   opts.position   - a Promise of {lat,lng}|null requested at shutter time;
+//                     if omitted, location is requested after the upload.
+async function uploadFile(file, kind, opts = {}) {
   const label = kind === "video" ? "video" : "photo";
-
-  document.getElementById("trip-status").textContent = `Uploading ${label}...`;
-
-  // Upload starts immediately - never waits on GPS. Location is requested
-  // in true parallel with a real 10-second window to succeed; if it
-  // resolves, it's attached afterward via a quick PATCH. Video files are
-  // much bigger than photos, so this can genuinely take longer over a
-  // weak cellular connection - that's a real tradeoff of using the phone's
-  // full camera, not something to fake being instant.
+  const tripId = opts.tripId || state.tripId; // captured now, in case you navigate away mid-upload
   const formData = new FormData();
   formData.append("photo", file); // field name kept as "photo" - the server just reads whatever file arrives
   formData.append("userId", state.userId);
-  formData.append("capturedAt", new Date().toISOString());
+  formData.append("capturedAt", opts.capturedAt || new Date().toISOString());
 
   // "Load failed" is Safari's wording when the connection drops mid-request -
-  // common on weak cellular, and usually recoverable. Retry twice before
-  // actually bothering you with it. A real error FROM our server (a proper
-  // HTTP response, just not a 2xx) is different - retrying that just wastes
-  // time, so only network-level failures (no response at all) get retried.
-  async function uploadWithRetry(attempt = 1) {
+  // common on weak cellular, and usually recoverable. Retry before bothering
+  // anyone. A real error FROM our server (a proper non-2xx response) is
+  // different - retrying that just wastes time, so only network-level
+  // failures (no response at all) get retried.
+  async function attempt(n) {
     let res;
     try {
-      res = await fetch(`${API}/trips/${state.tripId}/media`, { method: "POST", body: formData });
+      res = await fetch(`${API}/trips/${tripId}/media`, { method: "POST", body: formData });
     } catch (networkErr) {
-      if (attempt < 3) {
+      if (n < 3) {
         document.getElementById("trip-status").textContent = `Uploading ${label}... (retrying, weak signal?)`;
-        await new Promise(r => setTimeout(r, 1500 * attempt));
-        return uploadWithRetry(attempt + 1);
+        await new Promise(r => setTimeout(r, 1500 * n));
+        return attempt(n + 1);
       }
       throw networkErr;
     }
@@ -854,24 +959,196 @@ function captureMedia(input, kind) {
     if (!res.ok) throw new Error(data.error || "Upload failed");
     return data;
   }
-  const uploadPromise = uploadWithRetry();
+  const media = await attempt(1);
 
-  uploadPromise.then(media => {
+  const patch = pos => { if (pos) apiPatch(`/media/${media.id}/location`, { lat: pos.lat, lng: pos.lng }).catch(() => {}); };
+  if (opts.position) {
+    opts.position.then(patch).catch(() => {});
+  } else if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => patch({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => { /* no location this time - it still stands on its own */ },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+    );
+  }
+  return media;
+}
+
+// The phone's own camera app (file input) - kept as the fallback for when the
+// in-page camera isn't available.
+function captureMedia(input, kind) {
+  const file = input.files[0];
+  if (!file) return;
+  const label = kind === "video" ? "video" : "photo";
+  document.getElementById("trip-status").textContent = `Uploading ${label}...`;
+  uploadFile(file, kind).then(() => {
     document.getElementById("trip-status").textContent = `${label[0].toUpperCase()}${label.slice(1)} uploaded!`;
     input.value = "";
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        pos => { apiPatch(`/media/${media.id}/location`, { lat: pos.coords.latitude, lng: pos.coords.longitude }).catch(() => {}); },
-        () => { /* no location this time - it still stands on its own */ },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
-      );
-    }
   }).catch(err => alert("Error: " + err.message));
 }
 
+// ---------- in-page camera ----------
+// The phone's own camera app always makes you tap "Use Photo" and then drops
+// you back on the web page after every single shot - a website can't skip
+// that. This keeps the camera INSIDE the page: tap the circle, the photo is
+// sent in the background, the camera is already ready for the next one.
+const cam = { stream: null, facing: "environment", open: false, sent: 0, uploading: 0, failed: [], thumbUrl: null };
+const $cam = id => document.getElementById(id);
+
+function camSetChip() {
+  const parts = [];
+  if (cam.uploading) parts.push(`\u2191 ${cam.uploading} sending`);
+  if (cam.sent) parts.push(`\u2713 ${cam.sent} saved`);
+  if (cam.failed.length) parts.push(`\u26A0 ${cam.failed.length} not sent - tap to retry`);
+  const noStream = $cam("camera-view").classList.contains("no-stream");
+  $cam("cam-chip").textContent = noStream ? "Camera not available" : (parts.join("  \u00B7  ") || "Tap the circle to take a photo");
+  $cam("cam-chip").classList.toggle("cam-chip-warn", cam.failed.length > 0);
+}
+
+function camStopTracks() {
+  if (cam.stream) { cam.stream.getTracks().forEach(t => t.stop()); cam.stream = null; }
+  const v = $cam("cam-video"); if (v) v.srcObject = null;
+}
+
+async function camStartStream() {
+  camStopTracks();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error("unsupported"), { name: "NotSupportedError" });
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: cam.facing }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false,
+  });
+  // You may have closed the camera while the permission prompt was still up -
+  // don't leave the camera light on with nothing showing.
+  if (!cam.open) { stream.getTracks().forEach(t => t.stop()); return; }
+  cam.stream = stream;
+  $cam("camera-view").classList.remove("no-stream");
+  $cam("cam-fallback").classList.add("hidden");
+  const v = $cam("cam-video");
+  v.classList.toggle("mirror", cam.facing === "user");
+  v.srcObject = stream;
+  try { await v.play(); } catch (_) { /* autoplay is already requested via the attribute */ }
+}
+
+function camShowFallback(err) {
+  const denied = err && (err.name === "NotAllowedError" || err.name === "SecurityError");
+  $cam("cam-fallback-msg").textContent = denied
+    ? "Camera access is blocked for this app. Allow it in your phone's settings, or use your phone's camera app instead."
+    : "The in-app camera isn't available on this phone.";
+  $cam("camera-view").classList.add("no-stream"); // nothing to aim or shoot with - hide the shutter
+  $cam("cam-fallback").classList.remove("hidden");
+  camSetChip();
+}
+
+async function openCamera() {
+  if (!state.tripId) return;
+  cam.open = true; cam.sent = 0;
+  $cam("camera-view").classList.remove("hidden", "no-stream");
+  $cam("cam-fallback").classList.add("hidden");
+  camSetChip();
+  try { await camStartStream(); } catch (err) { if (cam.open) camShowFallback(err); }
+}
+
+function closeCamera() {
+  cam.open = false;
+  camStopTracks();
+  const view = $cam("camera-view"); if (view) view.classList.add("hidden");
+}
+
+function camPositionNow() {
+  if (!navigator.geolocation) return Promise.resolve(null);
+  return new Promise(resolve => navigator.geolocation.getCurrentPosition(
+    pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+    () => resolve(null),
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+  ));
+}
+
+function camSend(item) {
+  cam.uploading++; camSetChip();
+  uploadFile(item.file, "photo", { capturedAt: item.capturedAt, position: item.position, tripId: item.tripId })
+    .then(() => { cam.sent++; })
+    .catch(() => { cam.failed.push(item); })
+    .finally(() => { cam.uploading--; camSetChip(); });
+}
+
+function camShoot() {
+  const v = $cam("cam-video");
+  if (!cam.stream || !v.videoWidth) return; // camera not ready yet
+  const canvas = document.createElement("canvas");
+  canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return camShowFallback();
+  ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+
+  const capturedAt = new Date().toISOString();
+  const position = camPositionNow(); // GPS starts at the moment of the shot, runs in parallel
+  const tripId = state.tripId;
+
+  const flash = $cam("cam-flash");
+  flash.classList.remove("go"); void flash.offsetWidth; flash.classList.add("go");
+  if (navigator.vibrate) navigator.vibrate(25);
+
+  canvas.toBlob(blob => {
+    if (!blob) return;
+    const file = new File([blob], `photo-${Date.now()}.jpg`, { type: "image/jpeg" });
+    try {
+      if (cam.thumbUrl) URL.revokeObjectURL(cam.thumbUrl);
+      cam.thumbUrl = URL.createObjectURL(blob);
+      const thumb = $cam("cam-thumb");
+      thumb.style.backgroundImage = `url('${cam.thumbUrl}')`;
+      thumb.style.visibility = "visible";
+    } catch (_) { /* the thumbnail is just a nicety */ }
+    camSend({ file, capturedAt, position, tripId });
+  }, "image/jpeg", 0.88);
+}
+
+function initCamera() {
+  $cam("cam-shutter").addEventListener("click", camShoot);
+  $cam("cam-close").addEventListener("click", closeCamera);
+  $cam("cam-map").addEventListener("click", closeCamera); // the live map + trip screen is right underneath
+  $cam("cam-flip").addEventListener("click", async () => {
+    cam.facing = cam.facing === "environment" ? "user" : "environment";
+    try { await camStartStream(); } catch (err) { if (cam.open) camShowFallback(err); }
+  });
+  $cam("cam-chip").addEventListener("click", () => {
+    const items = cam.failed.splice(0);
+    items.forEach(camSend);
+    camSetChip();
+  });
+  $cam("cam-native-btn").addEventListener("click", () => {
+    closeCamera();
+    document.getElementById("photo-input").click(); // still inside the tap, so the phone allows it
+  });
+  // Leaving the app releases the camera; coming back restarts it.
+  document.addEventListener("visibilitychange", () => {
+    if (!cam.open) return;
+    if (document.hidden) camStopTracks();
+    else camStartStream().catch(err => { if (cam.open) camShowFallback(err); });
+  });
+}
+initCamera();
+
+// "End my trip" ends only YOUR part of it. The trip keeps going for everyone
+// else, and you can still watch the route and everyone's photos, forever.
+// (Ending the whole trip for everyone used to be one tap on this button - a
+// family trip got ended by accident - so that is no longer possible from here.)
 function endTrip() {
-  apiPost(`/trips/${state.tripId}/end`).then(() => openMemory(state.tripId, state.tripName)).catch(err => alert("Error: " + err.message));
+  if (!confirm("End YOUR trip?\n\nYour location stops being shared and you can't add photos. The trip keeps going for everyone else, and you can still watch their route and photos.\n\nYou can rejoin any time.")) return;
+  apiPost(`/trips/${state.tripId}/leave`, { userId: state.userId })
+    .then(() => openMemory(state.tripId, state.tripName, "left"))
+    .catch(err => alert("Error: " + err.message));
+}
+
+function rejoinTrip() {
+  apiPost(`/trips/${state.tripId}/rejoin`, { userId: state.userId })
+    .then(() => openTrip(state.tripId, state.tripName))
+    .catch(err => alert("Error: " + err.message));
+}
+
+function resumeTrip() {
+  if (!confirm("Resume this trip so everyone can share live again?")) return;
+  apiPost(`/trips/${state.tripId}/resume`, { userId: state.userId })
+    .then(() => openTrip(state.tripId, state.tripName))
+    .catch(err => alert("Error: " + err.message));
 }
 
 let memoryMap = null;
@@ -880,9 +1157,14 @@ function stopMemoryPolling() {
   if (memoryMapInterval) { clearInterval(memoryMapInterval); memoryMapInterval = null; }
 }
 
-async function openMemory(tripId, tripName) {
-  state.tripId = tripId; state.tripName = tripName;
+// mode "left"  = you ended YOUR trip; it's still going for the others (Rejoin).
+// mode "ended" = the whole trip was ended (Resume is for that rare case).
+async function openMemory(tripId, tripName, mode = "ended") {
+  state.tripId = tripId; state.tripName = tripName; state.memoryMode = mode;
   hideAll(); document.getElementById("view-memory").classList.remove("hidden");
+  document.getElementById("resume-trip-btn").classList.toggle("hidden", mode !== "ended");
+  document.getElementById("rejoin-trip-btn").classList.toggle("hidden", mode !== "left");
+  document.getElementById("memory-banner").classList.toggle("hidden", mode !== "left");
   document.getElementById("memory-title").textContent = "Memory Stream: " + tripName;
   renderMembersInline(document.getElementById("memory-member-list"), state.packId);
 
@@ -1754,6 +2036,56 @@ function joinViaCode(code) {
 
 // ---------- boot ----------
 let pendingJoinCode = new URLSearchParams(window.location.search).get("join");
+// The installed app's icon opens "/?mode=camera" - straight into the camera.
+let wantsCameraFirst = new URLSearchParams(window.location.search).get("mode") === "camera";
+
+async function launchCameraFirst() {
+  wantsCameraFirst = false;
+  history.replaceState({}, "", window.location.pathname);
+  try {
+    const packs = await apiGet(`/packs?userId=${state.userId}`);
+    let best = null;
+    for (const p of packs) {
+      const trips = await apiGet(`/packs/${p.id}/trips?userId=${state.userId}`);
+      trips.filter(isLive).forEach(t => {
+        const when = Date.parse(t.started_at || t.created_at || "") || 0;
+        if (!best || when >= best.when) best = { pack: p, trip: t, when };
+      });
+    }
+    if (best) {
+      state.packId = best.pack.id; state.packName = best.pack.name;
+      openTrip(best.trip.id, best.trip.name, best.trip.discussion_location);
+      openCamera();
+      return;
+    }
+  } catch (err) { console.error("Camera-first launch failed:", err); }
+  showHome();
+  document.getElementById("home-note").textContent = "No live trip right now - start one to use the camera.";
+}
+
+// "Install the app" card in the side menu.
+let deferredInstallPrompt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredInstallPrompt = e; renderInstallCard(); });
+function renderInstallCard() {
+  const text = document.getElementById("install-text"), btn = document.getElementById("install-btn");
+  const installed = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+  btn.classList.add("hidden");
+  if (installed) { text.textContent = "You're using the installed app \u2713"; return; }
+  if (deferredInstallPrompt) { text.textContent = "Install it to open straight into the camera."; btn.classList.remove("hidden"); return; }
+  if (/iphone|ipad|ipod/i.test(window.navigator.userAgent)) {
+    text.textContent = "In Safari: tap the Share button, then \"Add to Home Screen\". Open it from your home screen to go straight to the camera.";
+  } else {
+    text.textContent = "In Chrome: tap the \u22EE menu, then \"Install app\" (or \"Add to Home screen\"). Open it from your home screen to go straight to the camera.";
+  }
+}
+document.getElementById("install-btn").addEventListener("click", async () => {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice.catch(() => {});
+  deferredInstallPrompt = null; renderInstallCard();
+});
+renderInstallCard();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 
 (function boot() {
   apiGet("/config").then(cfg => {
@@ -1765,7 +2097,7 @@ let pendingJoinCode = new URLSearchParams(window.location.search).get("join");
     if (saved) {
       const u = JSON.parse(saved);
       state.userId = u.id; state.displayName = u.displayName;
-      if (pendingJoinCode) joinViaCode(pendingJoinCode); else showHome();
+      if (pendingJoinCode) joinViaCode(pendingJoinCode); else if (wantsCameraFirst) launchCameraFirst(); else showHome();
     } else {
       showSetup(); // setupUser() will complete the join afterward if pendingJoinCode is set
     }

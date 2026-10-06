@@ -4,3 +4,5 @@ dist/
 *.zip
 .DS_Store
 npm-debug.log*
+tests/node_modules
+tests/package*.json

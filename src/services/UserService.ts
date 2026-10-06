@@ -26,15 +26,50 @@ export class UserService {
   // Phase 1 proper, alongside the invite-by-phone-number flow.
   // This exists so we can create test users for the end-to-end loop.
 
+  // Accounts made before phone numbers were normalized were saved exactly as
+  // typed ("+15551234567", "(555) 123-4567", ...). Looking only for the
+  // normalized form would NOT find them and would quietly create a second,
+  // empty account for the same person - the "I lost all my hives" bug again.
+  // So: try the normalized form first (fast), then compare normalized forms of
+  // the stored numbers. The users table is tiny at this stage; once it's large,
+  // replace the scan with a one-time migration to a normalized, indexed column.
+  private async findByPhone(normalized: string) {
+    const { data: exact, error: exactErr } = await supabase
+      .from("users").select("*").eq("phone_number", normalized).maybeSingle();
+    if (exactErr) throw exactErr;
+    if (exact) return exact;
+
+    const { data: all, error: allErr } = await supabase
+      .from("users").select("id, phone_number, created_at");
+    if (allErr) throw allErr;
+    const matches = (all ?? []).filter((u: any) => normalizePhone(u.phone_number || "") === normalized);
+    if (!matches.length) return null;
+
+    matches.sort((a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at)));
+    let chosen = matches[0]; // the original account, unless another one clearly holds the person's data
+    if (matches.length > 1) {
+      // The same person ended up with more than one account (that's the bug
+      // being fixed). Keep the one that belongs to the most i'Hives.
+      const { data: memberships } = await supabase
+        .from("pack_members").select("user_id").in("user_id", matches.map((m: any) => m.id));
+      const counts: Record<string, number> = {};
+      (memberships ?? []).forEach((m: any) => { counts[m.user_id] = (counts[m.user_id] || 0) + 1; });
+      chosen = matches.reduce((best: any, m: any) => ((counts[m.id] || 0) > (counts[best.id] || 0) ? m : best), matches[0]);
+    }
+
+    // Best-effort: store it normalized from now on so the next lookup is the
+    // fast path and the choice above stays stable. A failure here (e.g. a
+    // uniqueness clash) is harmless - we still return the right account.
+    await supabase.from("users").update({ phone_number: normalized }).eq("id", chosen.id);
+
+    const { data: full, error: fullErr } = await supabase.from("users").select("*").eq("id", chosen.id).single();
+    if (fullErr) throw fullErr;
+    return full;
+  }
+
   async findOrCreateByPhone(input: CreateUserInput) {
     const phone = normalizePhone(input.phoneNumber);
-    const { data: existing, error: findError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("phone_number", phone)
-      .maybeSingle();
-
-    if (findError) throw findError;
+    const existing = await this.findByPhone(phone);
 
     if (existing) {
       // An invited person starts as a "Pending member" placeholder. The

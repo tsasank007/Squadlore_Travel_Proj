@@ -19,7 +19,10 @@ app.use(express.static(path.join(__dirname, "..", "public"), {
   setHeaders: (res) => res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate"),
 }));
 
-app.get("/health", (_req, res) => res.json({ status: "ok" }));
+// The same id is shown in the app's side menu, so "which version is running?"
+// can be answered from a phone or with: curl -s localhost:4000/health
+const BUILD_ID = "2026-10-06-end-my-trip-avatar-fix";
+app.get("/health", (_req, res) => res.json({ status: "ok", build: BUILD_ID }));
 
 app.get("/config", (_req, res) => {
   // Served at runtime rather than hardcoded in public/index.html, so the

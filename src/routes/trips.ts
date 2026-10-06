@@ -28,14 +28,55 @@ router.post("/", async (req, res) => {
 router.post("/:tripId/end", async (req, res) => {
   try {
     const trip = await tripService.endTrip(req.params.tripId);
+    // Ending affects everyone in the hive, so leave a trail of who did it.
+    console.log("Trip ended:", { tripId: req.params.tripId, by: req.body?.userId ?? "unknown", at: new Date().toISOString() });
     res.json(trip);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
+router.post("/:tripId/resume", async (req, res) => {
+  try {
+    const trip = await tripService.resumeTrip(req.params.tripId);
+    console.log("Trip resumed:", { tripId: req.params.tripId, by: req.body?.userId ?? "unknown", at: new Date().toISOString() });
+    res.json(trip);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+const LEFT_MESSAGE = "You've ended your trip, so sharing is off. Tap Rejoin to share again.";
+
+router.post("/:tripId/leave", async (req, res) => {
+  const userId = req.body?.userId;
+  if (!userId) return res.status(400).json({ error: "userId is required." });
+  try {
+    await tripService.leaveTrip(req.params.tripId, userId);
+    console.log("Trip left (own part only):", { tripId: req.params.tripId, by: userId, at: new Date().toISOString() });
+    res.status(204).send();
+  } catch (err: any) {
+    console.error("Leave trip failed:", err);
+    res.status(500).json({ error: "Couldn't end your trip right now. If this keeps happening, the one-time database step for this feature may not have been run yet." });
+  }
+});
+
+router.post("/:tripId/rejoin", async (req, res) => {
+  const userId = req.body?.userId;
+  if (!userId) return res.status(400).json({ error: "userId is required." });
+  try {
+    await tripService.rejoinTrip(req.params.tripId, userId);
+    console.log("Trip rejoined:", { tripId: req.params.tripId, by: userId, at: new Date().toISOString() });
+    res.status(204).send();
+  } catch (err: any) {
+    console.error("Rejoin trip failed:", err);
+    res.status(500).json({ error: "Couldn't rejoin right now. Please try again." });
+  }
+});
+
 router.post("/:tripId/pings", async (req, res) => {
   try {
+    if (await tripService.hasLeft(req.params.tripId, req.body?.userId)) return res.status(409).json({ error: LEFT_MESSAGE });
     await locationService.recordPing({ tripId: req.params.tripId, ...req.body });
     res.status(204).send();
   } catch (err: any) {
@@ -99,6 +140,7 @@ router.post("/:tripId/media", upload.single("photo"), async (req, res) => {
   // this is what fixed the multi-minute waits and database timeouts.
   try {
     if (!req.file) return res.status(400).json({ error: "No photo was attached to the upload." });
+    if (await tripService.hasLeft(req.params.tripId, req.body?.userId)) return res.status(409).json({ error: LEFT_MESSAGE });
     const media = await mediaService.uploadMedia({
       tripId: req.params.tripId,
       userId: req.body.userId,
