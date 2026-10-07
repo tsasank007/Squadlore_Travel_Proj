@@ -9,6 +9,7 @@ const ok = (c, m) => { assert(c, "FAIL: " + m); n++; console.log("  ✓", m); };
   const { w, log } = app;
   const $ = s => w.document.querySelector(s);
   await sleep(150);
+  w.eval("showHome()"); await sleep(300);
   w.document.querySelectorAll("#pack-list .pack-item")[0].click();
   await sleep(700);
 

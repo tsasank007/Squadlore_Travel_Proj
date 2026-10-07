@@ -27,11 +27,11 @@ let n = 0; const ok = (c, m) => { assert(c, "FAIL: " + m); n++; console.log("  â
   app = makeApp(process.argv[2], { setup: env.setup, noActive: true, url: "https://34-176-154-19.nip.io/?mode=camera" });
   w = app.w; $ = s => w.document.querySelector(s);
   await sleep(900);
-  ok(!$("#view-home").classList.contains("hidden") && $("#camera-view").classList.contains("hidden"), "goes to Home, camera stays closed");
-  ok($("#home-note").textContent.includes("No live trip"), "explains why: " + $("#home-note").textContent);
+  ok(!$("#view-landing").classList.contains("hidden") && $("#camera-view").classList.contains("hidden"), "lands on the map screen with no live trip, camera stays closed");
+  ok($("#landing-note").textContent.includes("No live trip"), "explains why: " + $("#landing-note").textContent);
   ok(env.state.calls.length === 0, "camera was never started");
   w.eval("openPlanRoute()");
-  ok($("#home-note").textContent === "", "note clears once you leave Home");
+  ok($("#view-landing").classList.contains("hidden"), "the landing card goes away once you leave it");
   w.close();
 
   console.log("First time in the installed app (new storage): sign in, then camera");

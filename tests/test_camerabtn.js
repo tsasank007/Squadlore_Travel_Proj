@@ -10,6 +10,7 @@ let n = 0; const ok = (c, m) => { assert(c, "FAIL: " + m); n++; console.log("  â
   const app = makeApp(process.argv[2], { setup: env.setup });
   const { w } = app;
   await sleep(150);
+  w.eval("showHome()"); await sleep(300);
   w.document.querySelectorAll("#pack-list .pack-item")[0].click();
   await sleep(700);
   ok(w.document.getElementById("camera-view").classList.contains("hidden"), "camera is closed until you tap the camera button");

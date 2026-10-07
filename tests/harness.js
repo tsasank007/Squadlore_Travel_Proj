@@ -30,6 +30,9 @@ function makeApp(htmlPath, opts = {}) {
         on(ev, cb) { (this.handlers[ev] = this.handlers[ev] || []).push(cb); }
         once(ev, cb) { this.on(ev, cb); }
         addControl() {}
+        getContainer() { return this.container; }
+        getZoom() { return this.zoomLevel ?? this.opts.zoom ?? 1; }
+        jumpTo(o) { if (o.zoom != null) { this.zoomLevel = o.zoom; (this.handlers.zoom || []).forEach(h => h()); } }
         remove() { this.removed = true; }
         loaded() { return this.loadedFlag; }
         isStyleLoaded() { return this.loadedFlag; }
@@ -66,6 +69,8 @@ function makeApp(htmlPath, opts = {}) {
         log.fetches.push(`${method} ${url}`);
         if (url === "/config") return json({ mapboxToken: "pk.x" });
         if (url.startsWith("/packs?userId")) return json([{ id: "P1", name: "Hive" }]);
+        if (url.startsWith("/packs/P1/trips") && opts.trips) { if (opts.tripsDelay) await sleep(opts.tripsDelay); return json(opts.trips); }
+        if (url.startsWith("/packs/P1/trips") && opts.tripsDelay) await sleep(opts.tripsDelay);
         if (url.startsWith("/packs/P1/trips")) {
           const t1 = { id: "T1", name: "Live trip", status: "active", left: !!opts.left };   // opts.left = "I ended MY trip" (it's still active for others)
           return json(opts.noActive ? [{ id: "T0", name: "Old trip", status: "ended", left: false }] : [t1, { id: "T0", name: "Old trip", status: "ended", left: false }]);

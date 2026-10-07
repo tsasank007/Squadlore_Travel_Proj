@@ -17,6 +17,7 @@ const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return `rgb(${n >> 
   const $ = s => w.document.querySelector(s);
   const $$ = s => [...w.document.querySelectorAll(s)];
   await sleep(150);
+  w.eval("showHome()"); await sleep(300);
   $$("#pack-list .pack-item")[0].click();
   await sleep(700);
 
@@ -25,7 +26,8 @@ const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return `rgb(${n >> 
   const pin = $("#live-map .photo-pin");
   ok(pin, "photo bubble is on the live map");
   ok(pin.querySelector(".photo-pin-img") && !pin.style.backgroundImage, "clickable part has NO image (picture is on a pointer-events:none child)");
-  ok(pin.querySelectorAll(".photo-pin-users span").length === 2, "bubble shows one colored dot per person (2)");
+  ok(pin.dataset.colors === [ev('colorForUser("U1")'), ev('colorForUser("U2")')].join(","), "the spot is ONE small dot painted from each person's colour (Sasi + Susha): " + pin.dataset.colors);
+  ok(!!pin.querySelector(".photo-pin-dot") && !pin.querySelector(".photo-pin-users"), "a dot, not the old row of little dots under a big picture");
 
   console.log("Colors: one color = one person");
   const cA = ev('colorForUser("U1")'), cB = ev('colorForUser("U2")');
@@ -118,6 +120,7 @@ const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return `rgb(${n >> 
   ok($("#orbit").classList.contains("hidden"), "navigating away closes it");
 
   console.log("Press-and-hold on the map");
+  w.eval("showHome()"); await sleep(300);
   $$("#pack-list .pack-item")[0].click(); await sleep(700);
   const map = $("#live-map");
   const touch = (type, x, y) => { const e = new w.Event(type, { bubbles: true }); e.touches = [{ clientX: x, clientY: y }]; map.dispatchEvent(e); };
@@ -133,6 +136,7 @@ const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return `rgb(${n >> 
   ok($("#orbit").classList.contains("hidden"), "dragging (panning) cancels the hold");
 
   console.log("Memory Stream (ended trip) uses the same browser + real names");
+  w.eval("showHome()"); await sleep(300);
   w.eval("showHome()"); await sleep(300);
   $$("#pack-list .pack-item")[1].click(); await sleep(700);
   ok(ev('packMembersById["U2"]') === "Susha", "member names loaded before drawing");

@@ -46,7 +46,7 @@
   #menu-btn { width: auto; background: none; padding: 4px 8px; margin: 0; font-size: 22px; line-height: 1; color: var(--bone); }
 
   #drawer-overlay { position: fixed; inset: 0; background: rgba(10, 15, 20, 0.55); z-index: 20; }
-  #drawer { position: fixed; top: 0; left: 0; bottom: 0; width: 280px; background: var(--slate); z-index: 21; padding: 16px; overflow-y: auto; box-shadow: 4px 0 20px rgba(0,0,0,0.4); border-right: 1px solid var(--border); }
+  #drawer { position: fixed; top: 0; left: 0; bottom: 0; width: 300px; max-width: 88vw; background: var(--slate); z-index: 21; padding: 16px; overflow-y: auto; box-shadow: 4px 0 20px rgba(0,0,0,0.4); border-right: 1px solid var(--border); }
   .drawer-pack { padding: 10px; border-radius: 10px; cursor: pointer; }
   .drawer-pack:hover { background: var(--slate-2); }
 
@@ -149,20 +149,36 @@
     margin-top: 3px; font-family: var(--display); font-size: 11px; font-weight: 600; color: var(--bone);
     background: rgba(22, 32, 44, 0.85); padding: 2px 8px; border-radius: 999px; white-space: nowrap;
   }
-  .photo-pin { width: 46px; height: 46px; position: relative; cursor: pointer; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  /* Photo spots are SMALL DOTS coloured by who took the photos. Zoom in close (the map
+     gets the class "map-zoomed-in" from its zoom level) and the dots grow into little
+     picture thumbnails. Tapping one opens the photo browser at any zoom.
+     NO "position" on .photo-pin: Mapbox makes every marker position:absolute and places
+     it by map coordinates. position:relative pulled markers back into normal page flow,
+     so each photo sat 46px lower than the one before it. */
+  .photo-pin {
+    width: 34px; height: 34px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+  }
+  .photo-pin-dot {
+    width: 16px; height: 16px; box-sizing: border-box; border-radius: 50%; border: 2px solid var(--bone);
+    box-shadow: 0 1px 5px rgba(0,0,0,0.55); pointer-events: none; transition: width .15s, height .15s;
+  }
   .photo-pin-img {
-    position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--bone);
-    background-size: cover; background-position: center; background-color: var(--slate-2);
-    box-shadow: 0 3px 10px rgba(0,0,0,0.45); pointer-events: none;
+    display: none; position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px;
+    box-sizing: border-box; border-radius: 50%; border: 2px solid var(--bone);
+    background-size: cover; background-position: center; background-color: var(--slate-2); pointer-events: none;
   }
-  .photo-pin-users { position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); display: flex; gap: 2px; pointer-events: none; }
-  .photo-pin-users span { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--bone); }
-  #map, #live-map, .mapboxgl-marker { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  .photo-pin-img.thumb-video { position: absolute; } /* .thumb-video elsewhere says "relative" */
   .photo-count-badge {
-    position: absolute; bottom: -4px; right: -4px; background: var(--ember); color: var(--dusk);
+    display: none; position: absolute; bottom: 0; right: 0; background: var(--ember); color: var(--dusk);
     font-size: 10px; font-weight: 700; width: 19px; height: 19px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; border: 2px solid var(--bone);
+    align-items: center; justify-content: center; border: 2px solid var(--bone); pointer-events: none;
   }
+  .map-zoomed-in .photo-pin { width: 54px; height: 54px; }
+  .map-zoomed-in .photo-pin-dot { width: 50px; height: 50px; border-width: 3px; }
+  .map-zoomed-in .photo-pin-img { display: block; }
+  .map-zoomed-in .photo-count-badge { display: flex; }
+  #map, #live-map, .mapboxgl-marker { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 
   .photo-card { background: var(--dusk); border: 1px solid var(--border); border-radius: 20px; padding: 12px; margin-bottom: 16px; }
   .photo-card img {
@@ -197,6 +213,33 @@
 
   /* Live multi-member map */
   .live-legend { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  /* ---- The map IS the landing page: the live trip fills the whole screen under the
+     header, with only the legend, the camera buttons and the menu on top of it. ---- */
+  #view-trip #live-map, #view-landing #landing-map {
+    position: fixed; top: var(--header-h, 66px); left: 0; right: 0; bottom: 0; z-index: 1;
+    width: auto; height: auto; margin: 0;
+  }
+  #view-trip .live-legend {
+    position: fixed; top: calc(var(--header-h, 66px) + 10px); left: 52px; right: 10px; z-index: 5;
+    flex-wrap: nowrap; overflow-x: auto; gap: 6px; scrollbar-width: none;
+  }
+  #view-trip .live-legend::-webkit-scrollbar { display: none; }
+  #view-trip .legend-chip {
+    flex: 0 0 auto; background: rgba(22, 32, 44, 0.84); color: var(--bone); padding: 4px 10px; border-radius: 999px;
+  }
+  #landing-card {
+    position: fixed; left: 14px; right: 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); z-index: 6;
+    max-width: 452px; margin: 0 auto; background: rgba(36, 49, 63, 0.94); border: 1px solid var(--border);
+    border-radius: 22px; padding: 18px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  }
+  #landing-card h2 { margin: 0 0 6px; }
+  #toast {
+    position: fixed; left: 50%; top: calc(var(--header-h, 66px) + 54px); transform: translateX(-50%); z-index: 30;
+    max-width: 88%; padding: 9px 16px; border-radius: 999px; background: rgba(22, 32, 44, 0.94); color: var(--bone);
+    font-size: 13px; text-align: center; border: 1px solid var(--border); pointer-events: none;
+  }
   .legend-chip { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dust); }
   .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
 
@@ -366,6 +409,22 @@
 
 <div id="drawer-overlay" class="hidden" onclick="toggleDrawer()"></div>
 <div id="drawer" class="hidden">
+  <div class="card hidden" id="drawer-trip-card">
+    <h2 id="trip-title"></h2>
+    <div id="trip-status" class="status"></div>
+    <div id="location-permission-status" class="status"></div>
+    <button onclick="sharePing()">📍 Share my location now</button>
+    <h3>Hive members</h3>
+    <div id="trip-member-list"></div>
+    <h3>Invite link</h3>
+    <div id="trip-invite-box"></div>
+  </div>
+  <div class="card">
+    <h2>Trips / i'Hives</h2>
+    <div id="drawer-packs"></div>
+    <button class="secondary" onclick="toggleDrawer(); showHome();">See all / + New</button>
+    <button class="secondary" onclick="toggleDrawer(); openPlanRoute();">🗺️ Plan a route</button>
+  </div>
   <div class="card">
     <h2>Account info</h2>
     <div id="drawer-account" class="status"></div>
@@ -376,15 +435,6 @@
     <h2>Install the app</h2>
     <p id="install-text" class="status"></p>
     <button id="install-btn" class="hidden">Install</button>
-  </div>
-  <div class="card">
-    <h2>Trips / i'Hives</h2>
-    <div id="drawer-packs"></div>
-    <button class="secondary" onclick="toggleDrawer(); showHome();">See all / + New</button>
-  </div>
-  <div class="card" id="drawer-members-card">
-    <h2>Hive members</h2>
-    <div id="drawer-members" class="status"></div>
   </div>
   <p id="build-label" class="status" style="margin:14px 4px 0;font-size:12px;"></p>
 </div>
@@ -457,7 +507,6 @@
 
   <!-- TRIP DETAIL: live sharing -->
   <div id="view-trip" class="hidden">
-    <button class="back" onclick="showHome()">&larr; i'Hives</button>
     <div id="camera-bar">
       <input type="file" id="photo-input" accept="image/*" capture="environment" onchange="captureMedia(this, 'photo')" hidden />
       <input type="file" id="video-input" accept="video/*" capture="environment" onchange="captureMedia(this, 'video')" hidden />
@@ -481,24 +530,18 @@
            EVERYONE. To hide it again: add the "hidden" attribute below.) -->
       <button id="end-trip-btn" class="camera-fab camera-fab-end" onclick="endTrip()" aria-label="End my trip">🏁</button>
     </div>
-    <div class="card">
-      <h2 id="trip-title"></h2>
-      <div id="trip-status" class="status"></div>
-      <div id="location-permission-status" class="status"></div>
-      <button onclick="sharePing()">📍 Share my location now</button>
-    </div>
-    <div class="card">
-      <h3>Hive members</h3>
-      <div id="trip-member-list"></div>
-    </div>
-    <div class="card">
-      <h3>Invite link</h3>
-      <div id="trip-invite-box"></div>
-    </div>
-    <div class="card">
-      <h3>Live map &middot; hold a spot to see photos taken there</h3>
-      <div id="live-map"></div>
-      <div id="live-legend" class="live-legend"></div>
+    <div id="live-legend" class="live-legend"></div>
+    <div id="live-map"></div>
+  </div>
+
+  <!-- LANDING with no live trip: still a map first, with a small card on top -->
+  <div id="view-landing" class="hidden">
+    <div id="landing-map"></div>
+    <div id="landing-card">
+      <h2>No live trip right now</h2>
+      <p id="landing-note" class="status"></p>
+      <button onclick="showHome()">+ Start a trip</button>
+      <button class="secondary" onclick="openPlanRoute()">🗺️ Plan a route on the map</button>
     </div>
   </div>
 
@@ -585,11 +628,35 @@
   </div>
 </div>
 
+<div id="toast" class="hidden"></div>
+
 <script>
 const API = ""; // same origin - client is served by the same Express server
 
-const BUILD_ID = "2026-10-06-end-my-trip-avatar-fix"; // shown in the side menu; the server reports the same id at /health
+const BUILD_ID = "2026-10-06-map-landing-dots"; // shown in the side menu; the server reports the same id at /health
 document.getElementById("build-label").textContent = "Build: " + BUILD_ID;
+let navToken = 0;      // bumps on every screen change, so a slow "where should I land?" lookup can't override where you went
+let landingMap = null;
+let toastTimer = null;
+function showToast(text, ms = 3500) {
+  const el = document.getElementById("toast");
+  el.textContent = text; el.classList.remove("hidden");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.add("hidden"), ms);
+}
+// The trip's status line now lives in the side menu, so important changes are also shown as a brief message over the map.
+function setTripStatus(text) { document.getElementById("trip-status").textContent = text; showToast(text); }
+// Map areas are placed under the real header height, whatever the font does to it.
+function syncHeaderHeight() { document.documentElement.style.setProperty("--header-h", document.querySelector("header").offsetHeight + "px"); }
+window.addEventListener("resize", syncHeaderHeight);
+syncHeaderHeight();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncHeaderHeight);
+
+// Photo spots are small dots; close up they become thumbnails (see .map-zoomed-in in the CSS).
+const THUMB_ZOOM = 14;
+function watchZoomStyle(map) {
+  const apply = () => map.getContainer().classList.toggle("map-zoomed-in", map.getZoom() >= THUMB_ZOOM);
+  map.on("zoom", apply); map.on("load", apply); apply();
+}
 let state = { userId: null, displayName: null, packId: null, packName: null, tripId: null, tripName: null };
 
 // ---------- API helpers ----------
@@ -657,6 +724,8 @@ async function toggleDrawer() {
     const signedIn = !!state.userId;
     document.getElementById("drawer-avatar-label").classList.toggle("hidden", !signedIn);
     if (!signedIn) document.getElementById("drawer-account").textContent = "Not signed in yet";
+    // the "this trip" card (members, invite link, share location) only makes sense on the live map
+    document.getElementById("drawer-trip-card").classList.toggle("hidden", document.getElementById("view-trip").classList.contains("hidden"));
   }
   if (opening && state.userId) {
     document.getElementById("drawer-account").textContent = state.displayName || "You";
@@ -673,36 +742,74 @@ async function toggleDrawer() {
       });
     } catch (err) { /* non-critical, ignore */ }
 
-    const membersCard = document.getElementById("drawer-members-card");
-    if (state.packId) {
-      membersCard.classList.remove("hidden");
-      try {
-        const members = await apiGet(`/packs/${state.packId}/members`);
-        const list = document.getElementById("drawer-members");
-        list.innerHTML = members.map(m =>
-          `<div class="drawer-pack">${m.users?.display_name || "Pending member"} <span class="badge${m.status === "active" ? " active" : ""}">${m.status}</span></div>`
-        ).join("");
-      } catch (err) { /* non-critical, ignore */ }
-    } else {
-      membersCard.classList.add("hidden");
-    }
   }
 }
 
 // ---------- view switching ----------
 function hideAll() {
+  navToken++;
+  if (landingMap) { landingMap.remove(); landingMap = null; }
   closeCamera();
   const homeNote = document.getElementById("home-note"); if (homeNote) homeNote.textContent = "";
   closeOrbit();
   stopLivePolling();
   stopMemoryPolling();
   stopAutoPing();
-  ["setup", "home", "pack", "trip", "memory", "plan"].forEach(v => document.getElementById("view-" + v).classList.add("hidden"));
+  ["setup", "home", "pack", "trip", "memory", "plan", "landing"].forEach(v => document.getElementById("view-" + v).classList.add("hidden"));
 }
 function showSetup() { hideAll(); document.getElementById("view-setup").classList.remove("hidden"); }
 // A trip is "live" for YOU only if it's active AND you haven't ended your own
 // part of it. Ending your trip never ends it for anyone else.
 const isLive = t => t.status === "active" && !t.left;
+
+// Where should the app open? On the map of your live trip. Everything else is under the menu.
+async function findMyTrips() {
+  const packs = await apiGet(`/packs?userId=${state.userId}`);
+  let live = null, left = null; // left = a trip that's still going for others but that I ended for myself
+  for (const p of packs) {
+    const trips = await apiGet(`/packs/${p.id}/trips?userId=${state.userId}`);
+    trips.forEach(t => {
+      const when = Date.parse(t.started_at || t.created_at || "") || 0;
+      if (isLive(t)) { if (!live || when >= live.when) live = { pack: p, trip: t, when }; }
+      else if (t.status === "active" && t.left) { if (!left || when >= left.when) left = { pack: p, trip: t, when }; }
+    });
+  }
+  return { live, left };
+}
+
+async function showLanding(note) {
+  const token = navToken;
+  try {
+    const { live, left } = await findMyTrips();
+    if (token !== navToken) return; // you already went somewhere else while this was loading
+    if (live) {
+      state.packId = live.pack.id; state.packName = live.pack.name;
+      return openTrip(live.trip.id, live.trip.name, live.trip.discussion_location);
+    }
+    if (left && !note) { // still watching a trip you ended for yourself
+      state.packId = left.pack.id; state.packName = left.pack.name;
+      return openMemory(left.trip.id, left.trip.name, "left");
+    }
+  } catch (err) {
+    if (token !== navToken) return;
+    console.error("Couldn't look up your trips:", err);
+  }
+  showNoTripLanding(note);
+}
+
+function showNoTripLanding(note) {
+  hideAll();
+  document.getElementById("view-landing").classList.remove("hidden");
+  document.getElementById("landing-note").textContent = note || "Start one and your hive's map, photos and routes will live right here.";
+  if (typeof mapboxgl === "undefined") return; // no map library (offline): the card is still usable
+  landingMap = new mapboxgl.Map({ container: document.getElementById("landing-map"), style: MAP_STYLE_URL, center: [0, 20], zoom: 1.4, projection: "mercator" });
+  landingMap.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-left");
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      if (landingMap) landingMap.jumpTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 11 });
+    }, () => {}, { maximumAge: 600000, timeout: 5000 });
+  }
+}
 const memoryModeFor = t => (t.status === "active" && t.left ? "left" : "ended");
 const tripBadge = t => isLive(t)
   ? "<span class='badge active'>live</span>"
@@ -736,11 +843,13 @@ async function renderMembersInline(container, packId) {
   if (!container) return;
   const members = await apiGet(`/packs/${packId}/members`);
   container.innerHTML = "";
-  members.forEach(m => {
+  members.forEach((m, i) => {
     const el = document.createElement("div");
     el.className = "trip-item";
     const badgeClass = m.status === "active" ? "badge active" : "badge";
-    el.innerHTML = `<span>${m.users?.display_name || "Pending member"}</span><span class="${badgeClass}">${m.status}</span>`;
+    // the same colour this person has on the map (colours are handed out in join order)
+    const color = USER_COLORS[i % USER_COLORS.length];
+    el.innerHTML = `<span style="display:flex;align-items:center;gap:8px;"><span class="legend-dot" style="background:${color}"></span>${m.users?.display_name || "Pending member"}</span><span class="${badgeClass}">${m.status}</span>`;
     container.appendChild(el);
   });
 }
@@ -777,9 +886,8 @@ function openTrip(tripId, tripName, startPoint) {
   state.tripId = tripId; state.tripName = tripName;
   hideAll(); document.getElementById("view-trip").classList.remove("hidden");
   document.getElementById("trip-title").textContent = tripName;
-  document.getElementById("trip-status").textContent = startPoint
-    ? `Starting point: ${startPoint} - live, share your location and photos below.`
-    : "Live - share your location and photos below.";
+  document.getElementById("trip-status").textContent = (startPoint ? `Starting point: ${startPoint}. ` : "") +
+    "Live - your location is shared automatically while this screen is open.";
   renderInviteLinkBox(document.getElementById("trip-invite-box"), state.packId);
   renderMembersInline(document.getElementById("trip-member-list"), state.packId);
   initLiveMap(tripId, state.packId);
@@ -817,7 +925,7 @@ function setupUser() {
     state.userId = user.id; state.displayName = user.display_name;
     localStorage.setItem("squadlore_user", JSON.stringify({ id: user.id, displayName: user.display_name }));
     if (avatarFile && user && user.id) uploadAvatar(user.id, avatarFile); // fire-and-forget, doesn't block continuing
-    if (pendingJoinCode) joinViaCode(pendingJoinCode); else if (wantsCameraFirst) launchCameraFirst(); else showHome();
+    if (pendingJoinCode) joinViaCode(pendingJoinCode); else if (wantsCameraFirst) launchCameraFirst(); else showLanding();
   }).catch(err => alert("Error: " + err.message));
 }
 
@@ -889,7 +997,7 @@ function copyInviteLink(url) {
 
 function sharePing() {
   if (!navigator.geolocation) return alert("Location isn't available on this device/browser.");
-  document.getElementById("trip-status").textContent = "Getting your location...";
+  setTripStatus("Getting your location...");
   navigator.geolocation.getCurrentPosition(pos => {
     apiPost(`/trips/${state.tripId}/pings`, {
       userId: state.userId,
@@ -897,7 +1005,7 @@ function sharePing() {
       lng: pos.coords.longitude,
       capturedAt: new Date().toISOString(),
     }).then(() => {
-      document.getElementById("trip-status").textContent = "Location shared just now.";
+      setTripStatus("Location shared just now.");
     }).catch(err => alert("Error: " + err.message));
   }, err => alert("Couldn't get location: " + err.message));
 }
@@ -949,7 +1057,7 @@ async function uploadFile(file, kind, opts = {}) {
       res = await fetch(`${API}/trips/${tripId}/media`, { method: "POST", body: formData });
     } catch (networkErr) {
       if (n < 3) {
-        document.getElementById("trip-status").textContent = `Uploading ${label}... (retrying, weak signal?)`;
+        setTripStatus(`Uploading ${label}... (retrying, weak signal?)`);
         await new Promise(r => setTimeout(r, 1500 * n));
         return attempt(n + 1);
       }
@@ -980,9 +1088,9 @@ function captureMedia(input, kind) {
   const file = input.files[0];
   if (!file) return;
   const label = kind === "video" ? "video" : "photo";
-  document.getElementById("trip-status").textContent = `Uploading ${label}...`;
+  setTripStatus(`Uploading ${label}...`);
   uploadFile(file, kind).then(() => {
-    document.getElementById("trip-status").textContent = `${label[0].toUpperCase()}${label.slice(1)} uploaded!`;
+    setTripStatus(`${label[0].toUpperCase()}${label.slice(1)} uploaded!`);
     input.value = "";
   }).catch(err => alert("Error: " + err.message));
 }
@@ -1174,6 +1282,7 @@ async function openMemory(tripId, tripName, mode = "ended") {
   memoryMap = new mapboxgl.Map({ container: mapEl, style: MAP_STYLE_URL, center: [0, 20], zoom: 1, projection: "mercator" });
   memoryMap.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-left");
   watchUserPan(memoryMap);
+  watchZoomStyle(memoryMap);
   activeMap = memoryMap;
   attachLongPress(mapEl);
 
@@ -1360,11 +1469,20 @@ function maybeFitBounds(map, bounds) {
 
 function addPhotoMarker(map, bubble) {
   const firstMedia = activeMediaById[bubble.mediaIds[0]];
+  const uids = [...new Set(bubble.mediaIds.map(id => activeMediaById[id]?.user_id).filter(Boolean))];
+  const colors = uids.length ? uids.map(colorForUser) : ["#E8743B"];
   // The clickable element carries NO image. The picture lives on a child with
   // pointer-events:none - so when you press and hold, iOS finds nothing to
   // offer "Save/Copy image" for (that menu was hijacking the long-press).
   const el = document.createElement("div");
   el.className = "photo-pin";
+  el.dataset.colors = colors.join(","); // which people's photos are here (also what the dot is painted from)
+  const dot = document.createElement("div");
+  dot.className = "photo-pin-dot";
+  // one colour = one person; several people at the same spot = a pie of their colours
+  dot.style.background = colors.length === 1 ? colors[0]
+    : `conic-gradient(${colors.map((c, i) => `${c} ${(i * 100 / colors.length).toFixed(2)}% ${((i + 1) * 100 / colors.length).toFixed(2)}%`).join(", ")})`;
+  el.appendChild(dot);
   const img = document.createElement("div");
   img.className = "photo-pin-img";
   setThumb(img, firstMedia);
@@ -1374,18 +1492,6 @@ function addPhotoMarker(map, bubble) {
     badge.className = "photo-count-badge";
     badge.textContent = bubble.mediaIds.length;
     el.appendChild(badge);
-  }
-  // One small colored dot per person who took photos here (one color = one person)
-  const uids = [...new Set(bubble.mediaIds.map(id => activeMediaById[id]?.user_id).filter(Boolean))];
-  if (uids.length) {
-    const dots = document.createElement("div");
-    dots.className = "photo-pin-users";
-    uids.slice(0, 5).forEach(uid => {
-      const d = document.createElement("span");
-      d.style.background = colorForUser(uid);
-      dots.appendChild(d);
-    });
-    el.appendChild(dots);
   }
   el.addEventListener("click", ev => {
     ev.stopPropagation();
@@ -1487,6 +1593,7 @@ async function initLiveMap(tripId, packId) {
   liveMap = map;
   map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-left");
   watchUserPan(map);
+  watchZoomStyle(map);
   activeMap = map;
   attachLongPress(el);
   stopLivePolling();
@@ -2042,25 +2149,21 @@ let wantsCameraFirst = new URLSearchParams(window.location.search).get("mode") =
 async function launchCameraFirst() {
   wantsCameraFirst = false;
   history.replaceState({}, "", window.location.pathname);
+  const token = navToken;
   try {
-    const packs = await apiGet(`/packs?userId=${state.userId}`);
-    let best = null;
-    for (const p of packs) {
-      const trips = await apiGet(`/packs/${p.id}/trips?userId=${state.userId}`);
-      trips.filter(isLive).forEach(t => {
-        const when = Date.parse(t.started_at || t.created_at || "") || 0;
-        if (!best || when >= best.when) best = { pack: p, trip: t, when };
-      });
-    }
-    if (best) {
-      state.packId = best.pack.id; state.packName = best.pack.name;
-      openTrip(best.trip.id, best.trip.name, best.trip.discussion_location);
+    const { live } = await findMyTrips();
+    if (token !== navToken) return;
+    if (live) {
+      state.packId = live.pack.id; state.packName = live.pack.name;
+      openTrip(live.trip.id, live.trip.name, live.trip.discussion_location);
       openCamera();
       return;
     }
-  } catch (err) { console.error("Camera-first launch failed:", err); }
-  showHome();
-  document.getElementById("home-note").textContent = "No live trip right now - start one to use the camera.";
+  } catch (err) {
+    if (token !== navToken) return;
+    console.error("Camera-first launch failed:", err);
+  }
+  showNoTripLanding("No live trip right now - start one to use the camera.");
 }
 
 // "Install the app" card in the side menu.
@@ -2097,7 +2200,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").cat
     if (saved) {
       const u = JSON.parse(saved);
       state.userId = u.id; state.displayName = u.displayName;
-      if (pendingJoinCode) joinViaCode(pendingJoinCode); else if (wantsCameraFirst) launchCameraFirst(); else showHome();
+      if (pendingJoinCode) joinViaCode(pendingJoinCode); else if (wantsCameraFirst) launchCameraFirst(); else showLanding();
     } else {
       showSetup(); // setupUser() will complete the join afterward if pendingJoinCode is set
     }

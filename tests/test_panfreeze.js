@@ -6,6 +6,7 @@ let n = 0; const ok = (c, m) => { assert(c, "FAIL: " + m); n++; console.log("  â
   const app = makeApp(process.argv[2]);
   const { w, log } = app;
   await sleep(150);
+  w.eval("showHome()"); await sleep(300);
   w.document.querySelectorAll("#pack-list .pack-item")[0].click();
   await sleep(700);
   const map = log.maps.at(-1);
@@ -20,6 +21,7 @@ let n = 0; const ok = (c, m) => { assert(c, "FAIL: " + m); n++; console.log("  â
   // a PROGRAMMATIC event (no originalEvent) - e.g. our own code - must not count as user interaction
   const map2name = "clean";
   w.eval("showHome()");
+  w.eval("showHome()"); await sleep(300);
   w.document.querySelectorAll("#pack-list .pack-item")[0].click();
   await sleep(700);
   const map2 = log.maps.at(-1);

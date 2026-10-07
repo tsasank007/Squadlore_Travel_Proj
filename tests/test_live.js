@@ -5,6 +5,7 @@ async function scenario(htmlPath, label, opts) {
   const app = makeApp(htmlPath, opts);
   const { w, log } = app;
   await sleep(150);                                    // boot -> home list
+  w.eval("showHome()"); await sleep(300);
   const rows = w.document.querySelectorAll("#pack-list .pack-item");
   assert.strictEqual(rows.length, 2, "home should list both trips as i'Hives, got " + rows.length);
   rows[0].click();                                     // open the live trip

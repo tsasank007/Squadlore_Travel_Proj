@@ -8,6 +8,7 @@ async function start(camOpts = {}, appOpts = {}) {
   const env = makeCamEnv(camOpts);
   const app = makeApp(path, { setup: env.setup, ...appOpts });
   await sleep(150);
+  app.w.eval("showHome()"); await sleep(300);
   app.w.document.querySelectorAll("#pack-list .pack-item")[0].click();
   await sleep(700);
   app.w.document.getElementById("camera-btn").click();

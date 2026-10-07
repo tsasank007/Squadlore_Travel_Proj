@@ -21,7 +21,7 @@ app.use(express.static(path.join(__dirname, "..", "public"), {
 
 // The same id is shown in the app's side menu, so "which version is running?"
 // can be answered from a phone or with: curl -s localhost:4000/health
-const BUILD_ID = "2026-10-06-end-my-trip-avatar-fix";
+const BUILD_ID = "2026-10-06-map-landing-dots";
 app.get("/health", (_req, res) => res.json({ status: "ok", build: BUILD_ID }));
 
 app.get("/config", (_req, res) => {

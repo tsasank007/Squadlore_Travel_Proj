@@ -6,6 +6,7 @@ let n = 0; const ok = (c, m) => { assert(c, "FAIL: " + m); n++; console.log("  â
   const app = makeApp(process.argv[2]);
   const { w, log } = app;
   await sleep(150);
+  w.eval("showHome()"); await sleep(300);
   w.document.querySelectorAll("#pack-list .pack-item")[0].click();
   await sleep(700);
   w.document.querySelector(".photo-pin").click();
